@@ -1,0 +1,10 @@
+MAUI K12 Baton Workflow Skill
+Copyright 2026 Tal Simon
+
+This package was created by Tal Simon.
+Original project: https://github.com/stma1one/maui-k12-baton-workflow
+
+If you use, modify, or redistribute this package, preserve this NOTICE file and give appropriate credit to the original creator.
+
+Optional Third-Party Tooling Notice:
+This repository does not bundle or redistribute third-party binaries. When the user optionally installs the Python learning-book validation dependencies (`Learning-Book-Requirements.txt`), `PyMuPDF` is installed from PyPI under the GNU Affero General Public License v3.0 (AGPL-3.0, Copyright Artifex Software, Inc.), `Playwright` under Apache-2.0, `markdown-it-py` under MIT, and `Pygments` under BSD-2-Clause.

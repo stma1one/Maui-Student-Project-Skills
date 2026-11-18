@@ -1,0 +1,54 @@
+{
+  "skill_name": "maui-step-guide-author",
+  "evals": [
+    {
+      "id": "new-project-build-along",
+      "prompt": "I am starting a MAUI homework app with no pages yet. Help my students build a learning book while we create a profile screen with save validation.",
+      "expected_output": "Select the new-project build-along mode, propose a small student-approved roadmap for the profile screen, and start with a source-grounded chapter contract in Hebrew with English code identifiers rather than dumping the whole project.",
+      "assertions": {
+        "must_contain": [
+          "MAUI-Learning-Book.md"
+        ],
+        "must_match_regex": [
+          "[\\u0590-\\u05FF]"
+        ],
+        "must_not_contain": [
+          "<ScreenName>",
+          "<AppNamespace>",
+          "TODO: replace"
+        ]
+      },
+      "files": []
+    },
+    {
+      "id": "existing-project-roadmap",
+      "prompt": "Our MAUI app already has a Shell, a video list (MainViewModel.cs), SQLite services (IDatabaseService.cs), and tests. We need a guided book that gets students to a filter-and-sort goal. Decide the right steps with us first.",
+      "expected_output": "Inspect and map the existing project facts (MainViewModel, IDatabaseService), identify the current state and end goal, and ask the user to approve or adjust the milestone roadmap before authoring chapters.",
+      "assertions": {
+        "must_contain": [
+          "MainViewModel",
+          "IDatabaseService"
+        ],
+        "must_not_contain": [
+          "<ScreenName>",
+          "TODO: replace"
+        ]
+      },
+      "files": []
+    },
+    {
+      "id": "ui-replication-with-artifacts",
+      "prompt": "Create a step-by-step guide for this supplied dashboard design. We cannot capture an emulator, but the final learning book needs HTML snapshots and a PDF with no blank or clipped pages.",
+      "expected_output": "Create an HTML visual model with data-guide-overview and data-guide-block selectors, capture snapshots with Capture-Mockup-Blocks.py, clearly label the HTML model as a teaching diagram rather than emulator evidence, and require Generate-Learning-Book-Pdf.py / MAUI-Learning-Book.validation.json to pass.",
+      "assertions": {
+        "must_contain": [
+          "data-guide-overview",
+          "data-guide-block",
+          "Capture-Mockup-Blocks.py",
+          "MAUI-Learning-Book.validation.json"
+        ]
+      },
+      "files": []
+    }
+  ]
+}
