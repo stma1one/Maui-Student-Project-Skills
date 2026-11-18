@@ -115,6 +115,19 @@ if ($screens.Count -gt 0) {
     }
 }
 
+# 3. Verify that if Learning/Diagrams/*.mmd exist, visual PNG images (Screen-Flow.png & Architecture-UML.png) also exist in Learning/Images/
+$diagramsDir = Join-Path $learningDir "Diagrams"
+if (Test-Path -LiteralPath $diagramsDir) {
+    if ((Test-Path -LiteralPath (Join-Path $diagramsDir "Screen-Flow.mmd")) -and -not (Test-Path -LiteralPath (Join-Path $imagesDir "Screen-Flow.png"))) {
+        Write-Host "[MISSING DIAGRAM IMAGE] Learning/Images/Screen-Flow.png is missing. Run .\Scripts\Generate-Architecture-Diagrams.ps1." -ForegroundColor Red
+        $preFlightFailed = $true
+    }
+    if ((Test-Path -LiteralPath (Join-Path $diagramsDir "Architecture-UML.mmd")) -and -not (Test-Path -LiteralPath (Join-Path $imagesDir "Architecture-UML.png"))) {
+        Write-Host "[MISSING DIAGRAM IMAGE] Learning/Images/Architecture-UML.png is missing. Run .\Scripts\Generate-Architecture-Diagrams.ps1." -ForegroundColor Red
+        $preFlightFailed = $true
+    }
+}
+
 python $scriptPath --html $HtmlPath --pdf $PdfPath --report $ReportPath --project-root $ProjectRoot
 if ($LASTEXITCODE -ne 0 -or $preFlightFailed) {
     exit 1

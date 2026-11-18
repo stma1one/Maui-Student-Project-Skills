@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Root = (Split-Path -Parent $PSScriptRoot),
     [switch]$Upgrade,
     [Alias("NoDevFlow")]

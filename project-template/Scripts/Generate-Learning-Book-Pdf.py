@@ -638,6 +638,12 @@ def main():
     else:
         combined_md = f"# ספר הלמידה – {project_info['app_name']}\n\n"
 
+    # Auto-include visual Architecture & UML Diagrams chapter if Learning/Diagrams/Architecture-Diagram-Prompts.md exists
+    diagrams_md = learning_dir / "Diagrams/Architecture-Diagram-Prompts.md"
+    if diagrams_md.is_file() and "Screen-Flow.png" not in combined_md and "Architecture-UML.png" not in combined_md:
+        diag_text = diagrams_md.read_text(encoding="utf-8", errors="ignore")
+        combined_md += "\n\n---\n\n" + diag_text
+
     # Auto-discover all guides in Learning/Guides/ (excluding README index)
     if guides_dir.exists():
         guide_files = [p for p in sorted(list(guides_dir.glob("*.md"))) if p.name.lower() != "readme.md"]

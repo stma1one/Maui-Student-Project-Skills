@@ -14,7 +14,11 @@ Scans the project's C# and XAML files to automatically produce:
 from __future__ import annotations
 
 import argparse
+import html
+import importlib.util
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -209,8 +213,154 @@ def build_screen_flow_mermaid(screens: list[str], edges: list[tuple[str, str, st
     return "\n".join(lines) + "\n"
 
 
+def build_visual_flow_html(screens: list[str], edges: list[tuple[str, str, str]]) -> str:
+    """Build a self-contained visual flowchart (HTML/SVG) that renders cleanly offline without external CDNs."""
+    edge_items = []
+    for src, dst, label in edges:
+        edge_items.append(
+            f'<div class="flow-edge">'
+            f'<span class="flow-node">{html.escape(src)}</span>'
+            f'<span class="flow-arrow"><span class="flow-label">{html.escape(label)}</span>&#8594;</span>'
+            f'<span class="flow-node flow-target">{html.escape(dst)}</span>'
+            f"</div>"
+        )
+    screen_badges = "".join(f'<span class="screen-chip">{html.escape(s)}</span>' for s in screens)
+    return (
+        f'<div class="diagram-visual" dir="ltr">'
+        f'<div class="chips-row"><strong>Screens ({len(screens)}):</strong> {screen_badges}</div>'
+        f'<div class="flow-grid">{"".join(edge_items)}</div>'
+        f"</div>"
+    )
+
+
+def build_visual_uml_html(classes: list[dict[str, object]]) -> str:
+    """Build a self-contained visual UML class diagram (boxes with attributes, methods, and relationships)."""
+    if not classes:
+        classes = [
+            {
+                "name": "MainPage",
+                "kind": "class",
+                "layer": "Views",
+                "bases": ["ContentPage"],
+                "props": [],
+                "methods": [("InitializeComponent", "void")],
+                "deps": ["MainViewModel"],
+            },
+            {
+                "name": "MainViewModel",
+                "kind": "class",
+                "layer": "ViewModels",
+                "bases": ["INotifyPropertyChanged"],
+                "props": [("IsLoading", "bool")],
+                "methods": [("InitializeAsync", "Task")],
+                "deps": [],
+            },
+        ]
+
+    cards = []
+    relations = []
+    for c in classes:
+        cname = html.escape(str(c["name"]))
+        layer = html.escape(str(c.get("layer", "Other")))
+        stereotype = "&lt;&lt;interface&gt;&gt; " if c.get("kind") == "interface" else ""
+        props_html = "".join(
+            f'<div class="uml-member">+ {html.escape(ptype)} <strong>{html.escape(pname)}</strong></div>'
+            for pname, ptype in c.get("props", [])
+        ) or '<div class="uml-empty">(no public properties)</div>'
+        methods_html = "".join(
+            f'<div class="uml-member">+ <strong>{html.escape(mname)}()</strong> : {html.escape(rtype)}</div>'
+            for mname, rtype in c.get("methods", [])
+        ) or '<div class="uml-empty">(no public methods)</div>'
+
+        cards.append(
+            f'<div class="uml-class-box">'
+            f'<div class="uml-header"><span class="uml-layer">{layer}</span><div class="uml-title">{stereotype}{cname}</div></div>'
+            f'<div class="uml-section">{props_html}</div>'
+            f'<div class="uml-section">{methods_html}</div>'
+            f"</div>"
+        )
+        for b in c.get("bases", []):
+            relations.append(f'<span class="rel-badge">{cname} &#9651;&#8212; inherits/implements <strong>{html.escape(str(b))}</strong></span>')
+        for d in c.get("deps", []):
+            relations.append(f'<span class="rel-badge">{cname} &#8230;&gt; injects (DI) <strong>{html.escape(str(d))}</strong></span>')
+
+    rel_block = f'<div class="uml-relations"><strong>Relationships &amp; DI Wiring:</strong> {"".join(relations)}</div>' if relations else ""
+    return f'<div class="diagram-visual" dir="ltr"><div class="uml-grid">{"".join(cards)}</div>{rel_block}</div>'
+
+
+def capture_diagram_images(html_path: Path, images_dir: Path) -> list[Path]:
+    """Render Architecture-Preview.html to visual PNG files in Learning/Images/."""
+    saved: list[Path] = []
+    flow_png = images_dir / "Screen-Flow.png"
+    uml_png = images_dir / "Architecture-UML.png"
+    overview_png = images_dir / "Architecture-Overview.png"
+
+    if importlib.util.find_spec("playwright") is not None:
+        try:
+            from playwright.sync_api import sync_playwright
+
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": 1100, "height": 900}, device_scale_factor=2)
+                page.goto(html_path.resolve().as_uri(), wait_until="networkidle")
+
+                overview_loc = page.locator("[data-guide-overview]")
+                if overview_loc.count() == 1:
+                    overview_loc.screenshot(path=str(overview_png))
+                    saved.append(overview_png)
+
+                flow_loc = page.locator('[data-guide-block="screen-flow"]')
+                if flow_loc.count() == 1:
+                    flow_loc.screenshot(path=str(flow_png))
+                    saved.append(flow_png)
+
+                uml_loc = page.locator('[data-guide-block="uml-diagram"]')
+                if uml_loc.count() == 1:
+                    uml_loc.screenshot(path=str(uml_png))
+                    saved.append(uml_png)
+
+                browser.close()
+                if flow_png.is_file() and uml_png.is_file():
+                    return saved
+        except Exception as exc:
+            print(f"[INFO] Playwright diagram snapshot fallback ({exc}); trying browser CLI...")
+
+    # Fallback: use system Chrome / Edge headless --screenshot if Playwright is not installed
+    chrome_candidates = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+    ]
+    chrome_bin = next((c for c in chrome_candidates if os.path.exists(c)), None)
+    if chrome_bin:
+        for target_png in (flow_png, uml_png):
+            subprocess.run(
+                [
+                    chrome_bin,
+                    "--headless=new",
+                    "--disable-gpu",
+                    "--window-size=1100,900",
+                    f"--screenshot={target_png}",
+                    html_path.resolve().as_uri(),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if target_png.is_file() and target_png.stat().st_size > 0:
+                saved.append(target_png)
+
+    return saved
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate UML and Screen Flow diagrams and prompts for a MAUI project.")
+    parser = argparse.ArgumentParser(description="Generate UML and Screen Flow diagrams, visual PNGs, and prompts for a MAUI project.")
     parser.add_argument("--project-root", default=str(Path(__file__).resolve().parent.parent), help="Project root path")
     args = parser.parse_args()
 
@@ -225,6 +375,8 @@ def main() -> int:
 
     uml_mmd = build_uml_mermaid(classes)
     flow_mmd = build_screen_flow_mermaid(screens, edges)
+    visual_flow = build_visual_flow_html(screens, edges)
+    visual_uml = build_visual_uml_html(classes)
 
     uml_path = diagrams_dir / "Architecture-UML.mmd"
     flow_path = diagrams_dir / "Screen-Flow.mmd"
@@ -234,15 +386,70 @@ def main() -> int:
     uml_path.write_text(uml_mmd, encoding="utf-8")
     flow_path.write_text(flow_mmd, encoding="utf-8")
 
+    html_content = f"""<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>תרשימי ארכיטקטורה — תיק פרויקט .NET MAUI</title>
+  <style>
+    body {{ font-family: 'Segoe UI', Tahoma, sans-serif; background: #f8fafc; color: #0f172a; margin: 24px; }}
+    .card {{ background: white; border: 2px solid #cbd5e1; border-radius: 14px; padding: 22px; margin-bottom: 24px; box-shadow: 0 4px 10px rgba(15,23,42,0.05); }}
+    h1, h2 {{ color: #0369a1; margin-top: 0; }}
+    .diagram-visual {{ background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 14px 0; }}
+    .chips-row {{ margin-bottom: 14px; font-size: 13px; color: #334155; }}
+    .screen-chip {{ display: inline-block; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; border-radius: 999px; padding: 3px 12px; margin: 3px 4px; font-weight: 600; font-size: 12px; }}
+    .flow-grid {{ display: flex; flex-direction: column; gap: 10px; }}
+    .flow-edge {{ display: flex; align-items: center; gap: 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 14px; }}
+    .flow-node {{ background: #0284c7; color: white; font-weight: 700; padding: 6px 14px; border-radius: 8px; font-size: 13px; }}
+    .flow-target {{ background: #0f172a; }}
+    .flow-arrow {{ display: flex; flex-direction: column; align-items: center; color: #475569; font-weight: 600; font-size: 12px; min-width: 110px; }}
+    .flow-label {{ background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 6px; padding: 1px 8px; font-size: 11px; margin-bottom: 2px; }}
+    .uml-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }}
+    .uml-class-box {{ border: 2px solid #0284c7; border-radius: 10px; background: #ffffff; overflow: hidden; }}
+    .uml-header {{ background: #e0f2fe; padding: 8px 12px; border-bottom: 2px solid #0284c7; }}
+    .uml-layer {{ font-size: 10px; text-transform: uppercase; font-weight: 700; color: #0369a1; background: #bae6fd; padding: 1px 6px; border-radius: 4px; }}
+    .uml-title {{ font-size: 14px; font-weight: 800; color: #0c4a6e; margin-top: 4px; }}
+    .uml-section {{ padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-family: Consolas, monospace; font-size: 11.5px; color: #1e293b; }}
+    .uml-section:last-child {{ border-bottom: none; }}
+    .uml-member {{ margin: 3px 0; }}
+    .uml-empty {{ color: #94a3b8; font-style: italic; font-size: 11px; }}
+    .uml-relations {{ margin-top: 14px; padding-top: 10px; border-top: 1px dashed #cbd5e1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }}
+    .rel-badge {{ background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; color: #334155; }}
+    pre {{ direction: ltr; text-align: left; background: #f1f5f9; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12px; color: #334155; }}
+  </style>
+</head>
+<body>
+  <main data-guide-overview>
+    <section class="card" data-guide-block="screen-flow">
+      <h2>1. תרשים זרימת מסכים (Screen Flow Diagram)</h2>
+      {visual_flow}
+      <pre>{html.escape(flow_mmd)}</pre>
+    </section>
+    <section class="card" data-guide-block="uml-diagram">
+      <h2>2. תרשים מחלקות (UML Class Diagram)</h2>
+      {visual_uml}
+      <pre>{html.escape(uml_mmd)}</pre>
+    </section>
+  </main>
+</body>
+</html>
+"""
+    html_path.write_text(html_content, encoding="utf-8")
+
+    captured_pngs = capture_diagram_images(html_path, images_dir)
+
+    flow_img_md = "\n![תרשים זרימת מסכים (Screen Flow)](../Images/Screen-Flow.png)\n" if (images_dir / "Screen-Flow.png").is_file() else ""
+    uml_img_md = "\n![תרשים מחלקות (UML Class Diagram)](../Images/Architecture-UML.png)\n" if (images_dir / "Architecture-UML.png").is_file() else ""
+
     prompts_md = f"""# תרשימי ארכיטקטורה ופרומפטים לתיק הפרויקט (883589)
 
 קובץ זה נוצר אוטומטית מתוך קוד הפרויקט על ידי `Generate-Architecture-Diagrams.py`.
-הוא מכיל את **תרשים זרימת המסכים (Screen Flow Diagram)** ואת **תרשים המחלקות (UML Class Diagram)** מוכנים לשילוב בפרק **"מבנה / ארכיטקטורה של הפרויקט"** בתיק הפרויקט, וכן פרומפטים מוכנים להדבקה בכלי שרטוט חיצוניים (כגון Mermaid Live Editor, Draw.io או כלי AI).
+הוא מכיל את **תרשים זרימת המסכים (Screen Flow Diagram)** ואת **תרשים המחלקות (UML Class Diagram)** — כולל **תמונות PNG ויזואליות מוכנות** (`Learning/Images/Screen-Flow.png` ו-`Learning/Images/Architecture-UML.png`) — לשילוב בפרק **"מבנה / ארכיטקטורה של הפרויקט"** בתיק הפרויקט ובספר הלמידה (`MAUI-Learning-Book.pdf`).
 
 ---
 
 ## 1. תרשים זרימת מסכים (Screen Flow Diagram)
-
+{flow_img_md}
 ```mermaid
 {flow_mmd.strip()}
 ```
@@ -253,7 +460,7 @@ def main() -> int:
 ---
 
 ## 2. תרשים מחלקות (UML Class Diagram)
-
+{uml_img_md}
 ```mermaid
 {uml_mmd.strip()}
 ```
@@ -263,38 +470,12 @@ def main() -> int:
 """
     prompts_path.write_text(prompts_md, encoding="utf-8")
 
-    html_content = f"""<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <title>תרשימי ארכיטקטורה — תיק פרויקט .NET MAUI</title>
-  <style>
-    body {{ font-family: 'Segoe UI', Tahoma, sans-serif; background: #f8fafc; color: #0f172a; margin: 24px; }}
-    .card {{ background: white; border: 2px solid #cbd5e1; border-radius: 14px; padding: 20px; margin-bottom: 24px; }}
-    h1, h2 {{ color: #0369a1; margin-top: 0; }}
-    pre {{ direction: ltr; text-align: left; background: #f1f5f9; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; }}
-  </style>
-</head>
-<body>
-  <main data-guide-overview>
-    <section class="card" data-guide-block="screen-flow">
-      <h2>1. תרשים זרימת מסכים (Screen Flow Diagram)</h2>
-      <pre>{flow_mmd}</pre>
-    </section>
-    <section class="card" data-guide-block="uml-diagram">
-      <h2>2. תרשים מחלקות (UML Class Diagram)</h2>
-      <pre>{uml_mmd}</pre>
-    </section>
-  </main>
-</body>
-</html>
-"""
-    html_path.write_text(html_content, encoding="utf-8")
-
     print(f"Generated Screen Flow Diagram: {flow_path}")
     print(f"Generated UML Class Diagram:   {uml_path}")
     print(f"Generated Saved Prompts:       {prompts_path}")
     print(f"Generated HTML Preview:        {html_path}")
+    for png in captured_pngs:
+        print(f"Generated Visual PNG Image:    {png}")
     return 0
 
 

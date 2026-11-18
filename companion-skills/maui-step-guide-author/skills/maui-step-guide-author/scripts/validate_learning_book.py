@@ -132,7 +132,7 @@ def validate_screens_and_pdf_freshness(project_root: Path, pdf_path: Path) -> li
             )
         else:
             for screen_key, candidate_tokens in screens.items():
-                has_match = False
+                matched_imgs: list[Path] = []
                 for img in image_files:
                     img_stem_low = img.stem.lower()
                     parent_low = img.parent.name.lower()
@@ -144,15 +144,44 @@ def validate_screens_and_pdf_freshness(project_root: Path, pdf_path: Path) -> li
                         or parent_low == tok
                         for tok in candidate_tokens
                     ):
-                        has_match = True
-                        break
-                if not has_match:
+                        matched_imgs.append(img)
+                if not matched_imgs:
                     issues.append(
                         {
                             "kind": "missing-screen-image",
                             "message": f"No image found in Learning/Images/ for screen '{screen_key}' (capture live via MAUI DevFlow or fallback HTML mockup + Capture-Mockup-Blocks.py).",
                         }
                     )
+                else:
+                    # Verify that the screen does not ONLY have Windows desktop screenshots without an Android/mobile screenshot
+                    non_windows_imgs = [
+                        img for img in matched_imgs if "windows" not in img.stem.lower() and "desktop" not in img.stem.lower()
+                    ]
+                    if not non_windows_imgs:
+                        issues.append(
+                            {
+                                "kind": "missing-android-screenshot",
+                                "message": f"Screen '{screen_key}' only has Windows/desktop screenshot(s) in Learning/Images/. Bagrut 883589 requires Android smartphone visual evidence ('{screen_key}-android.png' via Android emulator/ADB/DevFlow or Capture-Mockup-Blocks.py).",
+                            }
+                        )
+
+    # 3. Verify that if Architecture/UML Mermaid files exist in Learning/Diagrams/, visual PNG images also exist in Learning/Images/
+    diagrams_dir = learning_dir / "Diagrams"
+    if diagrams_dir.is_dir():
+        if (diagrams_dir / "Screen-Flow.mmd").is_file() and not (images_dir / "Screen-Flow.png").is_file():
+            issues.append(
+                {
+                    "kind": "missing-diagram-image",
+                    "message": "Learning/Diagrams/Screen-Flow.mmd exists, but visual PNG 'Learning/Images/Screen-Flow.png' is missing. Run python Scripts/Generate-Architecture-Diagrams.py.",
+                }
+            )
+        if (diagrams_dir / "Architecture-UML.mmd").is_file() and not (images_dir / "Architecture-UML.png").is_file():
+            issues.append(
+                {
+                    "kind": "missing-diagram-image",
+                    "message": "Learning/Diagrams/Architecture-UML.mmd exists, but visual PNG 'Learning/Images/Architecture-UML.png' is missing. Run python Scripts/Generate-Architecture-Diagrams.py.",
+                }
+            )
 
     return issues
 

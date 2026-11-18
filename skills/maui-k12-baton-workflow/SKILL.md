@@ -226,16 +226,17 @@ Read and execute the 12-point checklist and validation scripts in `references/ma
 
 - **Strict Evidence Rule & Mandatory Visual + PDF Blocking Gate for `COMPLETE`:**
   - It is **strictly forbidden** to declare `Status: COMPLETE` until build, tests, guardrail checks, **AND one of the two visual documentation routes below plus PDF book compilation** have actually run and passed with concrete output evidence:
-    1. **Route A — Live `MAUI DevFlow` Pipeline (when installed and working on the active target):**
-       - Run the app, inspect the visual tree (`maui devflow MAUI tree`), interact with controls by `AutomationId`, and capture a real runtime screenshot into `Learning/Images/<ScreenName>-live.png`.
-       - Embed the screenshot into `Learning/Guides/<ScreenName>-Guide.md` (and `Learning/MAUI-Learning-Book.md`).
-    2. **Route B — Mandatory Fallback Pipeline (REQUIRED whenever `MAUI DevFlow` is unavailable, skipped, or not operational on the active target):**
+    1. **Route A — Live `MAUI DevFlow` / Android Emulator Pipeline (when installed and working on the active target):**
+       - **Android Priority (Bagrut 883589 `REQ-1` Smartphone Requirement):** Do NOT settle for Windows-only (`net10.0-windows...`) desktop screenshots. Whenever an Android emulator or device is available (`adb devices`), build and run on Android (`dotnet build -t:Run -f net10.0-android`), forward the DevFlow port (`adb reverse tcp:9223 tcp:9223`), and capture an Android screenshot into `Learning/Images/<ScreenName>-android.png` via `maui devflow MAUI screenshot -o Learning/Images/<ScreenName>-android.png` (or `adb exec-out screencap -p > Learning/Images/<ScreenName>-android.png`). If running on Windows as well (`Learning/Images/<ScreenName>-windows.png`), you MUST ALSO provide an Android mobile screenshot (either from the Android emulator/device or via `Capture-Mockup-Blocks.py` which generates `Learning/Images/<ScreenName>-android.png` inside an Android 14 smartphone frame).
+       - Embed the screenshot(s) into `Learning/Guides/<ScreenName>-Guide.md` (and `Learning/MAUI-Learning-Book.md`).
+    2. **Route B — Mandatory Fallback Pipeline (REQUIRED whenever `MAUI DevFlow` or an Android emulator is unavailable, skipped, or not operational):**
        - Create the HTML visual model at `Learning/Mockups/<ScreenName>.html` (with `data-guide-overview` and `data-guide-block` attributes).
-       - Run `python .\Scripts\Capture-Mockup-Blocks.py --mockup .\Learning\Mockups\<ScreenName>.html --screen <ScreenName>` to capture overview and block images into `Learning/Images/`.
+       - Run `python .\Scripts\Capture-Mockup-Blocks.py --mockup .\Learning\Mockups\<ScreenName>.html --screen <ScreenName>` to capture `<ScreenName>-overview.png`, `<ScreenName>-android.png` (Android 14 phone frame at `412x915` portrait viewport), and block images into `Learning/Images/`.
        - Embed the generated images into `Learning/Guides/<ScreenName>-Guide.md`.
-    3. **Mandatory PDF Compilation & Validation Exit Condition (applies to BOTH routes):**
-       - Run `python .\Scripts\Generate-Learning-Book-Pdf.py` and `.\Scripts\Validate-Learning-Book.ps1` (or `./Scripts/Validate-Learning-Book.sh`).
-       - **`Status: COMPLETE` Exit Condition:** `Status: COMPLETE` is permitted **ONLY** when `Learning/MAUI-Learning-Book.pdf` physically exists and is up to date, `Learning/Images/` contains at least one image for every screen in the project, and `Learning/MAUI-Learning-Book.validation.json` reports `"passed": true`. Never claim `Status: COMPLETE` if the PDF or screen images were not generated or if any check failed.
+    3. **Mandatory Visual Architecture & UML Diagrams + PDF Compilation Exit Condition (applies to BOTH routes):**
+       - Run `.\Scripts\Generate-Architecture-Diagrams.ps1` (or `.sh` / `.py`) to generate both the `.mmd` sources (`Learning/Diagrams/Screen-Flow.mmd`, `Learning/Diagrams/Architecture-UML.mmd`) **AND the rendered visual PNG images** (`Learning/Images/Screen-Flow.png` and `Learning/Images/Architecture-UML.png`).
+       - Run `python .\Scripts\Generate-Learning-Book-Pdf.py` (which automatically embeds the Architecture & UML PNGs and screen guides) and `.\Scripts\Validate-Learning-Book.ps1` (or `./Scripts/Validate-Learning-Book.sh`).
+       - **`Status: COMPLETE` Exit Condition:** `Status: COMPLETE` is permitted **ONLY** when `Learning/MAUI-Learning-Book.pdf` physically exists and is up to date, `Learning/Images/` contains Android/mobile visual images for every screen plus `Screen-Flow.png` and `Architecture-UML.png`, and `Learning/MAUI-Learning-Book.validation.json` reports `"passed": true`. Never claim `Status: COMPLETE` if the PDF or screen/diagram images were not generated or if any check failed.
 - Use `Status: READY_TO_VERIFY` when code, guides, and HTML mockups are complete but terminal/script execution cannot run in the current environment and must be run locally by the student.
 - Use `Status: BLOCKED` when any build, test, guardrail check, or learning-book PDF/image validation fails and requires fixes.
 

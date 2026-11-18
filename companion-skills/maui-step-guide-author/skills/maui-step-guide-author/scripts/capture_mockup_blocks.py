@@ -68,6 +68,37 @@ def main() -> int:
                 block.screenshot(path=str(block_path))
                 manifest["blocks"].append({"name": label, "path": str(block_path)})
 
+            # Inject an Android 14 / Material 3 phone chrome wrapper around [data-guide-overview] to produce <ScreenName>-android.png
+            android_path = output_dir / f"{screen}-android.png"
+            page.set_viewport_size({"width": 412, "height": 915})
+            page.evaluate(
+                """(selector) => {
+                    const target = document.querySelector(selector);
+                    if (!target) return;
+                    const shell = document.createElement('div');
+                    shell.setAttribute('data-android-device-frame', 'true');
+                    shell.style.cssText = 'width:396px;margin:8px auto;background:#ffffff;border:8px solid #1e293b;border-radius:36px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.18);font-family:Roboto,Segoe UI,sans-serif;';
+                    const statusBar = document.createElement('div');
+                    statusBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 18px 6px 18px;background:#0f172a;color:#f8fafc;font-size:12px;font-weight:600;direction:ltr;';
+                    statusBar.innerHTML = '<span>09:41</span><span style="width:10px;height:10px;background:#020617;border-radius:50%;display:inline-block;"></span><span>5G &bull; 100%</span>';
+                    const contentWrap = document.createElement('div');
+                    contentWrap.style.cssText = 'padding:8px;';
+                    target.parentNode.insertBefore(shell, target);
+                    contentWrap.appendChild(target);
+                    const navBar = document.createElement('div');
+                    navBar.style.cssText = 'display:flex;justify-content:center;align-items:center;padding:10px 0 12px 0;background:#f8fafc;border-top:1px solid #e2e8f0;';
+                    navBar.innerHTML = '<div style="width:108px;height:4px;background:#334155;border-radius:999px;"></div>';
+                    shell.appendChild(statusBar);
+                    shell.appendChild(contentWrap);
+                    shell.appendChild(navBar);
+                }""",
+                args.overview_selector,
+            )
+            android_frame = page.locator("[data-android-device-frame]")
+            if android_frame.count() == 1:
+                android_frame.screenshot(path=str(android_path))
+                manifest["android"] = str(android_path)
+
             browser.close()
     except Exception as error:
         print(f"Snapshot capture failed: {error}", file=sys.stderr)
