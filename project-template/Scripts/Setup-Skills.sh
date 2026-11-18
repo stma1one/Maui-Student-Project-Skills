@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPGRADE=false
 SKIP_DEVFLOW=false
+SKIP_CLI=false
 
 if [[ $# -ge 1 && "${1:-}" != --* ]]; then
     ROOT="$1"
@@ -20,8 +21,12 @@ while [[ $# -gt 0 ]]; do
             SKIP_DEVFLOW=true
             shift
             ;;
+        --skip-cli|--no-cli|--skip-devflow-cli)
+            SKIP_CLI=true
+            shift
+            ;;
         *)
-            echo "Usage: ./Scripts/Setup-Skills.sh [ProjectRoot] [--upgrade] [--skip-devflow]" >&2
+            echo "Usage: ./Scripts/Setup-Skills.sh [ProjectRoot] [--upgrade] [--skip-devflow] [--skip-cli]" >&2
             exit 1
             ;;
     esac
@@ -416,9 +421,12 @@ echo "Default mode: MAXIMIZE STUDENT CAPABILITY"
 if [ "$SKIP_DEVFLOW" = true ]; then
     echo "[SKIP] MAUI DevFlow automatic injection skipped (--skip-devflow)."
 elif [ -f "$TARGET_DIR/Ensure-Maui-DevFlow.sh" ]; then
+    DEVFLOW_ARGS=("$ROOT")
     if [ "$UPGRADE" = true ]; then
-        bash "$TARGET_DIR/Ensure-Maui-DevFlow.sh" "$ROOT" --upgrade
-    else
-        bash "$TARGET_DIR/Ensure-Maui-DevFlow.sh" "$ROOT"
+        DEVFLOW_ARGS+=("--upgrade")
     fi
+    if [ "$SKIP_CLI" = true ]; then
+        DEVFLOW_ARGS+=("--skip-cli")
+    fi
+    bash "$TARGET_DIR/Ensure-Maui-DevFlow.sh" "${DEVFLOW_ARGS[@]}"
 fi

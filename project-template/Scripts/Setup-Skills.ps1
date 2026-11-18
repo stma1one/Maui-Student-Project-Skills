@@ -1,8 +1,10 @@
-param(
+﻿param(
     [string]$Root = (Split-Path -Parent $PSScriptRoot),
     [switch]$Upgrade,
     [Alias("NoDevFlow")]
-    [switch]$SkipDevFlow
+    [switch]$SkipDevFlow,
+    [Alias("NoCli", "SkipDevFlowCli")]
+    [switch]$SkipCli
 )
 
 $ErrorActionPreference = "Stop"
@@ -417,6 +419,9 @@ elseif (Test-Path $ensureDevFlow) {
     $devFlowArgs = @{ ProjectRoot = $Root }
     if ($Upgrade) {
         $devFlowArgs.Upgrade = $true
+    }
+    if ($SkipCli) {
+        $devFlowArgs.SkipCli = $true
     }
     & $ensureDevFlow @devFlowArgs
 }

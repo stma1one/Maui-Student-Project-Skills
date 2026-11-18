@@ -135,11 +135,14 @@ Before presenting a guide or book as complete, verify that:
 
 The bundled `evals/evals.json` covers a new-project build-along, an existing-project roadmap, and a UI-replication request. When revising this skill, preserve those distinct paths and add a realistic case before changing the trigger description.
 
-## Live Screenshots via MAUI DevFlow (When Installed & Working) vs. HTML Mockups (Fallback)
+## Live Screenshots via MAUI DevFlow (Route A) vs. Mandatory HTML Mockups & PDF Pipeline (Route B)
 
-1. **Live Visual Pipeline (`MAUI DevFlow` — When Installed & Working)**:
-   - When `Microsoft.Maui.DevFlow.Agent` is installed (injected in `Debug` mode on `.NET 10` / `.NET 11` projects by `Scripts/Ensure-Maui-DevFlow.py` / `scripts/ensure_maui_devflow.py`, unless opted out via `-SkipDevFlow` / `--skip-devflow`) and is actively working on the running target platform/emulator, capture **real runtime screenshots** directly into `Learning/Images/<ScreenName>-live.png` (and step crops into `Learning/Images/<ScreenName>/`) using `maui devflow MAUI screenshot`.
-   - Use these authentic screenshots both in `Learning/Guides/<ScreenName>-Guide.md` (and `Learning/MAUI-Learning-Book.md`) and as visual evidence for the **883589 Bagrut Project Portfolio** (Chapter 3 Screen Design, Chapter 5 User Manual, and Verification Evidence).
-2. **Fallback Visual Pipeline (`HTML Mockups` / Standard Screenshots)**:
-   - Because Android and Windows support in Microsoft's `MAUI DevFlow` is still marked "In progress" upstream (and projects on `net9.0` or opted out do not use DevFlow), use `Learning/Mockups/<ScreenName>.html` and `capture_mockup_blocks.py` (or standard emulator screenshots) whenever `MAUI DevFlow` is not installed or not operational on the active target platform, as well as during early Stage 1 (`PLANNING_COACH`) wireframing before the screen compiles.
-   - When `MAUI DevFlow` is installed and working on the active target, replace or supplement the mockup images with live application screenshots.
+1. **Route A — Live Visual Pipeline (`MAUI DevFlow` — When Installed & Working)**:
+   - When `Microsoft.Maui.DevFlow.Agent` (project NuGet) and `Microsoft.Maui.Cli` (`dotnet tool install -g Microsoft.Maui.Cli --prerelease`, provisioned by `Scripts/Ensure-Maui-DevFlow.py` / `scripts/ensure_maui_devflow.py` unless opted out via `-SkipDevFlow` / `--skip-devflow` or `-SkipCli` / `--skip-cli`) are installed and actively working on the running target platform/emulator, capture **real runtime screenshots** directly into `Learning/Images/<ScreenName>-live.png` (and step crops into `Learning/Images/<ScreenName>/`) using `maui devflow MAUI screenshot`.
+   - Embed these authentic screenshots in `Learning/Guides/<ScreenName>-Guide.md` (and `Learning/MAUI-Learning-Book.md`) for the **883589 Bagrut Project Portfolio** (Chapter 3 Screen Design, Chapter 5 User Manual, and Verification Evidence), then compile the PDF via `python .\Scripts\Generate-Learning-Book-Pdf.py` and verify via `.\Scripts\Validate-Learning-Book.ps1`.
+2. **Route B — Mandatory Fallback Visual & PDF Pipeline (`HTML Mockups` + `Capture-Mockup-Blocks.py` + `Generate-Learning-Book-Pdf.py`)**:
+   - Whenever `MAUI DevFlow` is not installed, skipped, or not operational on the active target platform, completing the fallback pipeline is a **mandatory blocking requirement** before declaring `Status: COMPLETE`:
+     1. Create `Learning/Mockups/<ScreenName>.html` with `data-guide-overview` and `data-guide-block` attributes.
+     2. Run `python .\Scripts\Capture-Mockup-Blocks.py` to generate images in `Learning/Images/`.
+     3. Embed the generated images into `Learning/Guides/<ScreenName>-Guide.md`.
+     4. Run `python .\Scripts\Generate-Learning-Book-Pdf.py` and `.\Scripts\Validate-Learning-Book.ps1` (or `./Scripts/Validate-Learning-Book.sh`), ensuring `Learning/MAUI-Learning-Book.pdf` physically exists and is up to date and `Learning/MAUI-Learning-Book.validation.json` reports `"passed": true`.

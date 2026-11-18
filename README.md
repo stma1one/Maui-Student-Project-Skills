@@ -87,11 +87,13 @@ Companion Skill: `maui-step-guide-author` for source-grounded learning books, mo
 
 ### Windows (PowerShell):
 
-Fresh install (automatically injects pinned Debug-only `Microsoft.Maui.DevFlow.Agent` `0.1.0-preview.14.26531.2` when the project targets `net10.0` or `net11.0`, and skips `net9.0` and older targets; pass `-SkipDevFlow` to opt out):
+Fresh install (automatically provisions two layers when the project targets `net10.0` or `net11.0`, skipping `net9.0` and older targets: (1) Debug-only `Microsoft.Maui.DevFlow.Agent` `0.1.0-preview.14.26531.2` in `.csproj` and `MauiProgram.cs`, and (2) global `.NET MAUI DevFlow CLI` via `dotnet tool install -g Microsoft.Maui.Cli --prerelease`; pass `-SkipDevFlow` to opt out of all DevFlow provisioning or `-SkipCli` if working without global permissions):
 
 ```powershell
 .\scripts\Install-Skill.ps1 -Target Project -ProjectPath C:\path\to\YourMauiProject
-# Opt out of automatic MAUI DevFlow injection:
+# Opt out of global CLI installation only (keep project NuGet):
+.\scripts\Install-Skill.ps1 -Target Project -ProjectPath C:\path\to\YourMauiProject -SkipCli
+# Opt out of automatic MAUI DevFlow injection entirely:
 .\scripts\Install-Skill.ps1 -Target Project -ProjectPath C:\path\to\YourMauiProject -SkipDevFlow
 ```
 
@@ -109,11 +111,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-Skill.
 
 ### macOS / Linux (Bash):
 
-Fresh install (pass `--skip-devflow` to opt out of automatic DevFlow injection):
+Fresh install (pass `--skip-cli` to skip global `Microsoft.Maui.Cli` installation or `--skip-devflow` to opt out of automatic DevFlow injection):
 
 ```bash
 chmod +x ./scripts/Install-Skill.sh
 ./scripts/Install-Skill.sh Project /path/to/YourMauiProject
+# Opt out of global CLI installation only:
+./scripts/Install-Skill.sh Project /path/to/YourMauiProject --skip-cli
 # Opt out of automatic MAUI DevFlow injection:
 ./scripts/Install-Skill.sh Project /path/to/YourMauiProject --skip-devflow
 ```

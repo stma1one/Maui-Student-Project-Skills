@@ -22,6 +22,8 @@ import json
 import os
 import pathlib
 import re
+import shutil
+import subprocess
 import sys
 import urllib.request
 
@@ -320,21 +322,67 @@ def ensure_maui_program_devflow(cs_path: pathlib.Path, dry_run: bool = False) ->
     return f"[INJECTED] Added #if DEBUG builder.AddMauiDevFlowAgent() to {cs_path.name}"
 
 
+def ensure_devflow_cli(
+    upgrade: bool = False,
+    skip_cli: bool = False,
+    dry_run: bool = False,
+    offline: bool = False,
+) -> str:
+    """Ensure the global .NET MAUI DevFlow CLI (`Microsoft.Maui.Cli` -> `maui`) is installed on the machine."""
+    if (
+        skip_cli
+        or dry_run
+        or offline
+        or os.environ.get("MAUI_SKIP_DEVFLOW_CLI", "").strip().lower() in {"1", "true", "yes"}
+    ):
+        return "[SKIP] Global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli) check skipped (--skip-cli / offline / dry-run)."
+
+    has_cli = shutil.which("maui") is not None
+    if not has_cli:
+        if shutil.which("dotnet") is None:
+            return "[WARN] 'dotnet' CLI not found in PATH; skipping global Microsoft.Maui.Cli installation."
+        print("[INFO] Installing global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli)...")
+        proc = subprocess.run(
+            ["dotnet", "tool", "install", "-g", "Microsoft.Maui.Cli", "--prerelease"],
+            check=False,
+        )
+        if proc.returncode == 0:
+            return "[INSTALLED] Installed global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli)."
+        return (
+            "[WARN] Global Microsoft.Maui.Cli installation returned non-zero "
+            "(pass --skip-cli / -SkipCli if working without global tool permissions)."
+        )
+
+    if upgrade:
+        if shutil.which("dotnet") is None:
+            return "[WARN] 'dotnet' CLI not found in PATH; skipping global Microsoft.Maui.Cli update."
+        print("[INFO] Updating global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli)...")
+        proc = subprocess.run(
+            ["dotnet", "tool", "update", "-g", "Microsoft.Maui.Cli", "--prerelease"],
+            check=False,
+        )
+        if proc.returncode == 0:
+            return "[UPGRADED] Updated global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli)."
+        return "[WARN] Global Microsoft.Maui.Cli update returned non-zero."
+
+    return "[OK] Global .NET MAUI DevFlow CLI ('maui') is already installed."
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Inject, upgrade, skip, or remove Debug-only Microsoft.Maui.DevFlow.Agent in a .NET 10 / .NET 11 MAUI project."
+        description="Inject, upgrade, skip, or remove Debug-only Microsoft.Maui.DevFlow.Agent and global Microsoft.Maui.Cli in a .NET 10 / .NET 11 MAUI project."
     )
     parser.add_argument("--project-root", default=".", help="Path to the .NET MAUI project root directory.")
     parser.add_argument("--version", default=None, help="Explicit NuGet version override for Microsoft.Maui.DevFlow.Agent.")
     parser.add_argument(
         "--upgrade",
         action="store_true",
-        help="Upgrade or install the latest available NuGet version instead of the pinned classroom baseline.",
+        help="Upgrade or install the latest available NuGet version and update global Microsoft.Maui.Cli.",
     )
     parser.add_argument(
         "--offline",
         action="store_true",
-        help="Skip online NuGet version lookup and use the bundled baseline version.",
+        help="Skip online NuGet version lookup and global CLI installation, using the bundled baseline version.",
     )
     parser.add_argument(
         "--skip",
@@ -342,7 +390,15 @@ def main() -> int:
         "--no-devflow",
         dest="skip",
         action="store_true",
-        help="Opt out of automatic Microsoft.Maui.DevFlow.Agent injection.",
+        help="Opt out of automatic Microsoft.Maui.DevFlow.Agent and CLI installation.",
+    )
+    parser.add_argument(
+        "--skip-cli",
+        "--no-cli",
+        "--skip-devflow-cli",
+        dest="skip_cli",
+        action="store_true",
+        help="Skip global Microsoft.Maui.Cli installation (for environments without global tool permissions).",
     )
     parser.add_argument(
         "--remove",
@@ -405,6 +461,14 @@ def main() -> int:
 
     if not any_active_csproj:
         return 0
+
+    cli_msg = ensure_devflow_cli(
+        upgrade=args.upgrade,
+        skip_cli=args.skip_cli,
+        dry_run=args.dry_run,
+        offline=args.offline,
+    )
+    print(cli_msg)
 
     if not maui_programs:
         print(f"[INFO] No MauiProgram.cs found under {root}; skipped MauiProgram.cs injection.")

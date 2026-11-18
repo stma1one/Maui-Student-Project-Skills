@@ -5,6 +5,8 @@ param(
     [switch]$Offline,
     [Alias("SkipDevFlow", "NoDevFlow")]
     [switch]$Skip,
+    [Alias("NoCli", "SkipDevFlowCli")]
+    [switch]$SkipCli,
     [Alias("Disable")]
     [switch]$Remove,
     [switch]$DryRun
@@ -17,6 +19,36 @@ if ($Skip -or ($env:MAUI_SKIP_DEVFLOW -match '^(1|true|yes)$')) {
     Write-Host "[SKIP] MAUI DevFlow automatic injection skipped by user option (-SkipDevFlow / MAUI_SKIP_DEVFLOW)."
     exit 0
 }
+
+function Ensure-DevFlowCli([switch]$Upgrade) {
+    if ($Skip -or $SkipCli -or $Remove -or $DryRun -or $Offline -or ($env:MAUI_SKIP_DEVFLOW -match '^(1|true|yes)$') -or ($env:MAUI_SKIP_DEVFLOW_CLI -match '^(1|true|yes)$')) {
+        if ($SkipCli -or ($env:MAUI_SKIP_DEVFLOW_CLI -match '^(1|true|yes)$')) {
+            Write-Host "[SKIP] Global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli) installation skipped (-SkipCli / MAUI_SKIP_DEVFLOW_CLI)." -ForegroundColor Yellow
+        }
+        return
+    }
+
+    $hasCli = Get-Command "maui" -CommandType Application -ErrorAction SilentlyContinue
+    if (-not $hasCli) {
+        $dotnetCmd = Get-Command "dotnet" -CommandType Application -ErrorAction SilentlyContinue
+        if (-not $dotnetCmd) {
+            Write-Host "[WARN] 'dotnet' CLI not found; skipping global Microsoft.Maui.Cli installation." -ForegroundColor Yellow
+            return
+        }
+        Write-Host "[INFO] Installing global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli)..." -ForegroundColor Cyan
+        & dotnet tool install -g Microsoft.Maui.Cli --prerelease
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[WARN] Global Microsoft.Maui.Cli installation returned non-zero (pass -SkipCli if working without global permissions)." -ForegroundColor Yellow
+        }
+    } elseif ($Upgrade) {
+        Write-Host "[INFO] Updating global .NET MAUI DevFlow CLI..." -ForegroundColor Cyan
+        & dotnet tool update -g Microsoft.Maui.Cli --prerelease
+    } else {
+        Write-Host "[OK] Global .NET MAUI DevFlow CLI ('maui') is already installed." -ForegroundColor Green
+    }
+}
+
+Ensure-DevFlowCli -Upgrade:$Upgrade
 
 function Find-WorkingPython3 {
     foreach ($candidate in @("python3", "python", "py")) {
@@ -80,6 +112,8 @@ if ($pythonSpec -and (Test-Path $scriptPath)) {
     if ($Upgrade) { $argsList += "--upgrade" }
     if ($Offline) { $argsList += "--offline" }
     if ($Skip) { $argsList += "--skip" }
+    # Ensure-DevFlowCli already ran in PowerShell above, so pass --skip-cli to avoid duplicate CLI invocation
+    $argsList += "--skip-cli"
     if ($Remove) { $argsList += "--remove" }
     if ($DryRun) { $argsList += "--dry-run" }
 

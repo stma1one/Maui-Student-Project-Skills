@@ -9,6 +9,7 @@ VERSION_OVERRIDE=""
 UPGRADE=false
 OFFLINE=false
 SKIP=false
+SKIP_CLI=false
 REMOVE=false
 DRY_RUN=false
 FORWARD_ARGS=()
@@ -44,6 +45,11 @@ while [[ $# -gt 0 ]]; do
     --skip|--skip-devflow|--no-devflow)
       SKIP=true
       FORWARD_ARGS+=("--skip")
+      shift
+      ;;
+    --skip-cli|--no-cli|--skip-devflow-cli)
+      SKIP_CLI=true
+      FORWARD_ARGS+=("--skip-cli")
       shift
       ;;
     --remove|--disable)
@@ -258,6 +264,22 @@ for csproj in "${MAUI_CSPROJS[@]}"; do
 done
 
 if [[ "$ANY_ACTIVE" == true ]]; then
+  if [[ "$SKIP_CLI" == true ]] || [[ "$DRY_RUN" == true ]] || [[ "$OFFLINE" == true ]] || [[ "${MAUI_SKIP_DEVFLOW_CLI:-}" =~ ^(1|true|yes|TRUE|YES)$ ]]; then
+    echo "[SKIP] Global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli) check skipped (--skip-cli / offline / dry-run)."
+  elif ! command -v maui >/dev/null 2>&1; then
+    if command -v dotnet >/dev/null 2>&1; then
+      echo "[INFO] Installing global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli)..."
+      dotnet tool install -g Microsoft.Maui.Cli --prerelease || echo "[WARN] Global Microsoft.Maui.Cli installation returned non-zero (pass --skip-cli if working without global permissions)."
+    else
+      echo "[WARN] 'dotnet' CLI not found; skipping global Microsoft.Maui.Cli installation."
+    fi
+  elif [[ "$UPGRADE" == true ]] && command -v dotnet >/dev/null 2>&1; then
+    echo "[INFO] Updating global .NET MAUI DevFlow CLI (Microsoft.Maui.Cli)..."
+    dotnet tool update -g Microsoft.Maui.Cli --prerelease || true
+  else
+    echo "[OK] Global .NET MAUI DevFlow CLI ('maui') is already installed."
+  fi
+
   for mp in "${MAUI_PROGRAMS[@]}"; do
     base_name="$(basename "$mp")"
     if grep -q "AddMauiDevFlowAgent" "$mp" 2>/dev/null; then

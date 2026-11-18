@@ -10,7 +10,10 @@ param(
     [switch] $InstallLearningBookDependencies,
 
     [Alias("NoDevFlow")]
-    [switch] $SkipDevFlow
+    [switch] $SkipDevFlow,
+
+    [Alias("NoCli", "SkipDevFlowCli")]
+    [switch] $SkipCli
 )
 
 $ErrorActionPreference = "Stop"
@@ -167,6 +170,9 @@ if ($Target -eq "Project") {
         $devFlowArgs = @{ ProjectRoot = $resolvedProject }
         if ($Upgrade) {
             $devFlowArgs.Upgrade = $true
+        }
+        if ($SkipCli) {
+            $devFlowArgs.SkipCli = $true
         }
         & $ensureDevFlow @devFlowArgs
     }

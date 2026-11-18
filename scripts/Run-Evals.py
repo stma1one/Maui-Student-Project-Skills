@@ -318,6 +318,8 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
         errors.append("scripts/Install-Skill.sh: Ensure-Maui-DevFlow.sh must be invoked inside the Project case before 'esac'.")
     if "--skip-devflow" not in sh_text:
         errors.append("scripts/Install-Skill.sh: missing --skip-devflow opt-out support.")
+    if "--skip-cli" not in sh_text:
+        errors.append("scripts/Install-Skill.sh: missing --skip-cli opt-out support.")
 
     ps_text = (repo_root / "scripts/Install-Skill.ps1").read_text(encoding="utf-8")
     codex_idx = ps_text.find('if ($Target -eq "Codex")')
@@ -326,6 +328,15 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
         errors.append("scripts/Install-Skill.ps1: Ensure-Maui-DevFlow.ps1 must be invoked inside the Project block before its 'return'.")
     if "SkipDevFlow" not in ps_text:
         errors.append("scripts/Install-Skill.ps1: missing -SkipDevFlow opt-out support.")
+    if "SkipCli" not in ps_text:
+        errors.append("scripts/Install-Skill.ps1: missing -SkipCli opt-out support.")
+
+    ensure_ps1_text = (repo_root / "project-template/Scripts/Ensure-Maui-DevFlow.ps1").read_text(encoding="utf-8")
+    if "function Ensure-DevFlowCli" not in ensure_ps1_text or "Microsoft.Maui.Cli" not in ensure_ps1_text:
+        errors.append("project-template/Scripts/Ensure-Maui-DevFlow.ps1: missing Ensure-DevFlowCli / Microsoft.Maui.Cli installation.")
+    ensure_py_text = (repo_root / "project-template/Scripts/Ensure-Maui-DevFlow.py").read_text(encoding="utf-8")
+    if 'shutil.which("maui")' not in ensure_py_text or "Microsoft.Maui.Cli" not in ensure_py_text:
+        errors.append("project-template/Scripts/Ensure-Maui-DevFlow.py: missing shutil.which('maui') / Microsoft.Maui.Cli installation.")
 
     # Run Validate-Bagrut-Compliance.py on project-template and ensure it does NOT print RESULT: PASS
     proc = subprocess.run(
@@ -428,8 +439,8 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
                         (no_py_bin / tool).symlink_to(cand)
                         break
 
-            no_py_env = {**os.environ, "PATH": str(no_py_bin), "MAUI_NO_PYTHON_INSTALL": "1"}
-            res_nopy_inject = subprocess.run(["/bin/bash", str(ensure_sh), str(net10_dir)], env=no_py_env, capture_output=True, text=True)
+            no_py_env = {**os.environ, "PATH": str(no_py_bin), "MAUI_NO_PYTHON_INSTALL": "1", "MAUI_SKIP_DEVFLOW_CLI": "1"}
+            res_nopy_inject = subprocess.run(["/bin/bash", str(ensure_sh), str(net10_dir), "--skip-cli"], env=no_py_env, capture_output=True, text=True)
             if res_nopy_inject.returncode != 0:
                 errors.append(f"Ensure-Maui-DevFlow.sh failed when Python was absent: {res_nopy_inject.stdout} {res_nopy_inject.stderr}")
             if 'Version="0.1.0-preview.14.26531.2"' not in net10_csproj.read_text(encoding="utf-8"):
@@ -461,13 +472,38 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
                 errors.append("Validate-Maui-ObsoleteApis.sh did not skip Views/ and Controls/ for SetProperty check!")
         else:
             # Windows / cross-platform Python + PowerShell verification
-            res_py_inject = subprocess.run([sys.executable, str(ensure_py), "--project-root", str(net10_dir)], capture_output=True, text=True)
+            res_py_inject = subprocess.run([sys.executable, str(ensure_py), "--project-root", str(net10_dir), "--skip-cli"], capture_output=True, text=True)
             if res_py_inject.returncode != 0:
                 errors.append(f"Ensure-Maui-DevFlow.py failed on net10 project: {res_py_inject.stdout} {res_py_inject.stderr}")
             if 'Version="0.1.0-preview.14.26531.2"' not in net10_csproj.read_text(encoding="utf-8"):
                 errors.append("Ensure-Maui-DevFlow.py did not inject pinned 0.1.0-preview.14.26531.2 into net10.0 .csproj.")
             if "AddMauiDevFlowAgent()" not in net10_mp.read_text(encoding="utf-8"):
                 errors.append("Ensure-Maui-DevFlow.py did not inject AddMauiDevFlowAgent() into MauiProgram.cs.")
+
+            # Verify Validate-Learning-Book.py catches missing screen image and missing PDF
+            vlb_py = repo_root / "project-template/Scripts/Validate-Learning-Book.py"
+            book_test_dir = tmp_path / "book_test_app"
+            (book_test_dir / "Views").mkdir(parents=True)
+            (book_test_dir / "Learning/Images").mkdir(parents=True)
+            (book_test_dir / "Views/DashboardPage.xaml").write_text("<ContentPage />", encoding="utf-8")
+            res_vlb = subprocess.run(
+                [
+                    sys.executable,
+                    str(vlb_py),
+                    "--html",
+                    str(book_test_dir / "Learning/MAUI-Learning-Book.html"),
+                    "--pdf",
+                    str(book_test_dir / "Learning/MAUI-Learning-Book.pdf"),
+                    "--report",
+                    str(book_test_dir / "Learning/MAUI-Learning-Book.validation.json"),
+                    "--project-root",
+                    str(book_test_dir),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if res_vlb.returncode == 0 or "DashboardPage" not in (res_vlb.stdout + res_vlb.stderr):
+                errors.append(f"Validate-Learning-Book.py did not fail on missing screen image for DashboardPage: {res_vlb.stdout} {res_vlb.stderr}")
 
             pwsh_exe = shutil.which("powershell.exe") or shutil.which("pwsh")
             if pwsh_exe:

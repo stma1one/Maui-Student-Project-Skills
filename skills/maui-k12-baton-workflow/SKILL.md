@@ -221,12 +221,23 @@ Rules:
 
 Goal: verify the slice with concrete evidence and review 5-unit Bagrut progress before claiming completion.
 
-Read and execute the 12-point checklist and validation scripts in `references/maui-specialist-guardrails.md` and `references/bagrut-5u-requirements.md` (`dotnet build`, `dotnet test`, `Validate-Maui-*`, `Audit-DI`, `Validate-Bagrut-Compliance`, and `Generate-Architecture-Diagrams` when architecture/navigation changed).
+Read and execute the 12-point checklist and validation scripts in `references/maui-specialist-guardrails.md` and `references/bagrut-5u-requirements.md` (`dotnet build`, `dotnet test`, `Validate-Maui-*`, `Audit-DI`, `Validate-Bagrut-Compliance`, `Generate-Architecture-Diagrams` when architecture/navigation changed, `Generate-Learning-Book-Pdf.py`, and `Validate-Learning-Book`).
 - **Periodic Bagrut Progress Reminder & Opportunity Suggestion:** In your verification summary, briefly remind the student of their current status in `Learning/Bagrut-Compliance.md` (which rubric items are `IMPLEMENTED` vs. still `PLANNED`) and suggest 1-2 concrete, project-relevant ideas for the next slice to fulfill remaining `PLANNED` items.
 
-- **Strict Evidence Rule for `COMPLETE`:** Claim `Status: COMPLETE` ONLY when build, tests, guardrail checks, and Hebrew learning documentation (`Learning/MAUI-Learning-Book.md`) have actually run and passed with concrete output evidence in the session. Never claim `Status: COMPLETE` if a build/test failed or was not executed.
-- Use `Status: READY_TO_VERIFY` when code and learning review are complete but terminal/script execution cannot run in the current environment and must be run locally by the student.
-- Use `Status: BLOCKED` when any build, test, or guardrail check fails and requires code fixes.
+- **Strict Evidence Rule & Mandatory Visual + PDF Blocking Gate for `COMPLETE`:**
+  - It is **strictly forbidden** to declare `Status: COMPLETE` until build, tests, guardrail checks, **AND one of the two visual documentation routes below plus PDF book compilation** have actually run and passed with concrete output evidence:
+    1. **Route A — Live `MAUI DevFlow` Pipeline (when installed and working on the active target):**
+       - Run the app, inspect the visual tree (`maui devflow MAUI tree`), interact with controls by `AutomationId`, and capture a real runtime screenshot into `Learning/Images/<ScreenName>-live.png`.
+       - Embed the screenshot into `Learning/Guides/<ScreenName>-Guide.md` (and `Learning/MAUI-Learning-Book.md`).
+    2. **Route B — Mandatory Fallback Pipeline (REQUIRED whenever `MAUI DevFlow` is unavailable, skipped, or not operational on the active target):**
+       - Create the HTML visual model at `Learning/Mockups/<ScreenName>.html` (with `data-guide-overview` and `data-guide-block` attributes).
+       - Run `python .\Scripts\Capture-Mockup-Blocks.py --mockup .\Learning\Mockups\<ScreenName>.html --screen <ScreenName>` to capture overview and block images into `Learning/Images/`.
+       - Embed the generated images into `Learning/Guides/<ScreenName>-Guide.md`.
+    3. **Mandatory PDF Compilation & Validation Exit Condition (applies to BOTH routes):**
+       - Run `python .\Scripts\Generate-Learning-Book-Pdf.py` and `.\Scripts\Validate-Learning-Book.ps1` (or `./Scripts/Validate-Learning-Book.sh`).
+       - **`Status: COMPLETE` Exit Condition:** `Status: COMPLETE` is permitted **ONLY** when `Learning/MAUI-Learning-Book.pdf` physically exists and is up to date, `Learning/Images/` contains at least one image for every screen in the project, and `Learning/MAUI-Learning-Book.validation.json` reports `"passed": true`. Never claim `Status: COMPLETE` if the PDF or screen images were not generated or if any check failed.
+- Use `Status: READY_TO_VERIFY` when code, guides, and HTML mockups are complete but terminal/script execution cannot run in the current environment and must be run locally by the student.
+- Use `Status: BLOCKED` when any build, test, guardrail check, or learning-book PDF/image validation fails and requires fixes.
 
 End with these exact plain-text lines:
 Workflow Stage: VERIFICATION_AUDITOR
@@ -235,13 +246,21 @@ Status: COMPLETE
 
 ### Runtime UI Inspection & Live Verification (`MAUI DevFlow`)
 
-- **.NET 10+ Provisioning & Opt-Out (`Scripts/Ensure-Maui-DevFlow.py` / `.ps1` / `.sh`)**: Installing or updating the skill on a `.NET MAUI` project (`Install-Skill.ps1/.sh` in `Project` mode or `Scripts/Setup-Skills.ps1/.sh`) checks the `.csproj` target framework and automatically injects the pinned `Microsoft.Maui.DevFlow.Agent` (`0.1.0-preview.14.26531.2`) under `Condition="'$(Configuration)' == 'Debug'"` and `#if DEBUG` `builder.AddMauiDevFlowAgent();` into `MauiProgram.cs` **only when the project targets `net10.0` or `net11.0`** (skipping `net9.0` and older targets such as `net9.0-android`). Automatic injection can be opted out at install time with `-SkipDevFlow` / `--skip-devflow` (`--no-devflow`) or removed later with `Ensure-Maui-DevFlow --remove`. Passing `--upgrade` / `-Upgrade` updates to the latest NuGet version.
+- **Two-Layer Provisioning & Opt-Out (`Scripts/Ensure-Maui-DevFlow.py` / `.ps1` / `.sh`)**: Installing or updating the skill on a `.NET MAUI` project (`Install-Skill.ps1/.sh` in `Project` mode or `Scripts/Setup-Skills.ps1/.sh`) provisions two layers when the `.csproj` targets `net10.0` or `net11.0` (skipping `net9.0` and older targets such as `net9.0-android`):
+  1. **Project Layer (NuGet & Code):** Injects the pinned `Microsoft.Maui.DevFlow.Agent` (`0.1.0-preview.14.26531.2`) under `Condition="'$(Configuration)' == 'Debug'"` into `.csproj` and `#if DEBUG` `builder.AddMauiDevFlowAgent();` into `MauiProgram.cs`.
+  2. **Machine Layer (Global CLI):** Checks whether the `maui` CLI is in `PATH` (`Ensure-DevFlowCli` / `shutil.which("maui")`) and installs or updates it via `dotnet tool install -g Microsoft.Maui.Cli --prerelease` (or `dotnet tool update -g Microsoft.Maui.Cli --prerelease` when `-Upgrade` / `--upgrade` is passed).
+  - **Opt-Out Flags:** Pass `-SkipDevFlow` / `--skip-devflow` (`--no-devflow`) to skip all DevFlow provisioning, `-SkipCli` / `--skip-cli` (`MAUI_SKIP_DEVFLOW_CLI=1`) to skip global CLI installation when working without global permissions, or `Ensure-Maui-DevFlow --remove` to remove project injection.
 - **Debug-Only Isolation**: `Microsoft.Maui.DevFlow.Agent` is strictly a development/verification tool ([.NET MAUI DevFlow Overview](https://learn.microsoft.com/en-us/dotnet/maui/developer-tools/devflow/?view=net-maui-10.0)) and MUST NEVER be shipped in `Release` builds. `Scripts/Validate-Maui-ObsoleteApis.ps1/.sh` fails with `[RELEASE LEAK]` if exposed outside `Debug` (including negated conditions such as `Condition="'$(Configuration)' != 'Debug'"` or `#if !DEBUG`).
-- **Stage 7 (`VERIFICATION_AUDITOR`) Live Evidence Rule (Only When Installed & Working)**: Because Android and Windows support in Microsoft's `MAUI DevFlow` is still marked "In progress" upstream, live `MAUI DevFlow` inspection and screenshot capture is performed **only when `MAUI DevFlow` is installed and actively working on the running target platform/emulator**:
-  1. Run the app and inspect the live visual tree (`maui devflow MAUI tree`) to verify rendered controls and `AutomationId` values.
-  2. Trigger the relevant UI control (`maui devflow agent interact tap --automationid <Id>`) and read live binding values from the visual tree.
-  3. Capture a real runtime screenshot (`maui devflow MAUI screenshot -o Learning/Images/<ScreenName>-live.png`) for the learning book and 883589 Project Portfolio.
-  - **Non-Blocking When DevFlow Is Not Installed or Unsupported on Target**: If `MAUI DevFlow` was skipped, is not installed (e.g., on `net9.0`), or is not yet operational on the current target platform (such as Android/Windows environments where upstream DevFlow support is still in progress), do **not** block `Status: COMPLETE` on a live DevFlow screenshot; rely on `dotnet build`, `dotnet test`, guardrail scripts, and HTML visual models or standard screenshots as fallback.
+- **Stage 7 (`VERIFICATION_AUDITOR`) Mandatory Visual & PDF Gate**:
+  - **When `MAUI DevFlow` is installed and working on the running target platform/emulator (Route A)**:
+    1. Run the app and inspect the live visual tree (`maui devflow MAUI tree`) to verify rendered controls and `AutomationId` values.
+    2. Trigger the relevant UI control (`maui devflow agent interact tap --automationid <Id>`) and read live binding values from the visual tree.
+    3. Capture a real runtime screenshot (`maui devflow MAUI screenshot -o Learning/Images/<ScreenName>-live.png`), embed it in `Learning/Guides/<ScreenName>-Guide.md`, and run `python .\Scripts\Generate-Learning-Book-Pdf.py` + `.\Scripts\Validate-Learning-Book.ps1`.
+  - **When `MAUI DevFlow` is not installed or not operational on the active target (Route B — Mandatory Fallback Pipeline)**:
+    1. Create the HTML visual model `Learning/Mockups/<ScreenName>.html`.
+    2. Run `python .\Scripts\Capture-Mockup-Blocks.py` to generate screen images in `Learning/Images/`.
+    3. Embed the images in `Learning/Guides/*.md`.
+    4. Run `python .\Scripts\Generate-Learning-Book-Pdf.py` and `.\Scripts\Validate-Learning-Book.ps1` (or `.sh`), verifying that `Learning/MAUI-Learning-Book.pdf` exists and `Learning/MAUI-Learning-Book.validation.json` passes before declaring `Status: COMPLETE`.
 - **Pedagogical Bug Hand-Off in Student Capability Mode (`studentCapabilityMode=true`)**: If `MAUI DevFlow` reveals a UI or binding defect in student-owned code, the agent MUST NOT auto-fix the student's `.xaml` or `.cs` files. Report the exact visual-tree finding and screenshot to the student, explain what failed, and end with `Status: BLOCKED` or `Status: WAITING_FOR_STUDENT` so the student fixes the code.
 - **Strict Precedence over External MAUI Skills (`maui ai init` / `dotnet/maui-labs`)**: If external skills from [`dotnet/maui-labs`](https://github.com/dotnet/maui-labs) are installed, `maui-k12-baton-workflow` rules take strict precedence (never use `[ObservableProperty]`, `[RelayCommand]`, or `ObservableObject`, and never bypass baton stages).
 
@@ -273,7 +292,8 @@ Never shame the student. Identify what is correct before naming the smallest cor
 When `.agents/MAUI-Agent-Mode.json` explicitly sets `"studentCapabilityMode": false`:
 - Start every response with the plain-text line: `Mode: MAXIMIZE CODE GENERATED`.
 - Batch implementation across layers (`Model + ViewModel + View`, `Service + DI`, `navigation + routes`, `tests + fixes`, `styles/resources`) without stopping for `CONCEPT_TUTOR` or `OWNERSHIP_NEGOTIATOR` gates.
-- Still strictly enforce `references/maui-specialist-guardrails.md` (Vanilla C# MVVM without `[ObservableProperty]` / `[RelayCommand]` source generators, approved SQLite stack, no obsolete APIs, no `Page.IsBusy`, no `.Result`/`.Wait()`, constructor DI, Hebrew learning documentation when configured, and verification before claiming `COMPLETE`).
+- **Mandatory Visual & PDF Pipeline in Code Generation Mode:** Batching across layers MUST include the visual documentation pipeline: writing the screen code, generating its visual artifact (DevFlow live capture or HTML mockup + `Capture-Mockup-Blocks.py`), embedding the images in the guide (`Learning/Guides/<ScreenName>-Guide.md`), and running `Generate-Learning-Book-Pdf.py` + `Validate-Learning-Book.ps1/.sh`. Never declare `Status: COMPLETE` until both `dotnet build` succeeds AND the PDF learning book (`Learning/MAUI-Learning-Book.pdf` + `Learning/MAUI-Learning-Book.validation.json`) is compiled and validated.
+- Still strictly enforce `references/maui-specialist-guardrails.md` (Vanilla C# MVVM without `[ObservableProperty]` / `[RelayCommand]` source generators, approved SQLite stack, no obsolete APIs, no `Page.IsBusy`, no `.Result`/`.Wait()`, constructor DI, Hebrew learning documentation, and verification before claiming `COMPLETE`).
 - Update `Learning/Current-Phase.md` when present so project state stays accurate.
 - **Mandatory Closing Footer in Code Generation Mode (plain-text lines at end of response):**
   - If the implementation is still in progress across turns:

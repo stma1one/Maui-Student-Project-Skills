@@ -30,4 +30,5 @@ fi
     --html "$PROJECT_ROOT/Learning/MAUI-Learning-Book.html" \
     --pdf "$PROJECT_ROOT/Learning/MAUI-Learning-Book.pdf" \
     --report "$PROJECT_ROOT/Learning/MAUI-Learning-Book.validation.json" \
+    --project-root "$PROJECT_ROOT" \
     "${@:2}"

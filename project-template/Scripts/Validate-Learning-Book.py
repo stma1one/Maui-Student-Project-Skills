@@ -47,8 +47,114 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--html", required=True, help="Generated MAUI-Learning-Book.html")
     parser.add_argument("--pdf", required=True, help="Generated MAUI-Learning-Book.pdf")
     parser.add_argument("--report", required=True, help="JSON validation report destination")
+    parser.add_argument("--project-root", default="", help="Optional project root for screen-image and PDF freshness checks")
     parser.add_argument("--placeholder", action="append", default=[], help="Additional token that must not appear in final output")
     return parser.parse_args()
+
+
+def validate_screens_and_pdf_freshness(project_root: Path, pdf_path: Path) -> list[dict[str, object]]:
+    issues: list[dict[str, object]] = []
+    if not project_root.is_dir():
+        return issues
+
+    learning_dir = project_root / "Learning"
+    images_dir = learning_dir / "Images"
+    guides_dir = learning_dir / "Guides"
+
+    # 1. Check PDF freshness against Markdown sources
+    if pdf_path.is_file() and pdf_path.stat().st_size > 0:
+        pdf_mtime = pdf_path.stat().st_mtime
+        md_sources: list[Path] = []
+        book_md = learning_dir / "MAUI-Learning-Book.md"
+        if book_md.is_file():
+            md_sources.append(book_md)
+        if guides_dir.is_dir():
+            md_sources.extend(sorted(guides_dir.glob("*.md")))
+        for md_file in md_sources:
+            if md_file.stat().st_mtime > pdf_mtime + 2.0:
+                rel_md = md_file.relative_to(project_root).as_posix()
+                issues.append(
+                    {
+                        "kind": "stale-pdf",
+                        "message": f"Learning/MAUI-Learning-Book.pdf is older than '{rel_md}'; re-run Generate-Learning-Book-Pdf.py.",
+                    }
+                )
+
+    # 2. Discover project screens from Views/*.xaml, *Page.xaml, and Learning/Guides/*-Guide.md
+    excluded_parts = {".git", ".vs", "bin", "obj", "Scripts", ".agents", "Resources", "Platforms"}
+    screens: dict[str, set[str]] = {}
+
+    if guides_dir.is_dir():
+        for guide in sorted(guides_dir.glob("*-Guide.md")):
+            screen_key = guide.stem[: -len("-Guide")].strip()
+            if screen_key and screen_key != "<ScreenName>":
+                base_stem = re.sub(r"(Page|View)$", "", screen_key, flags=re.IGNORECASE) or screen_key
+                screens.setdefault(screen_key, {screen_key.lower(), base_stem.lower()})
+
+    for xaml in sorted(project_root.rglob("*.xaml")):
+        try:
+            rel_parts = xaml.relative_to(project_root).parts
+        except ValueError:
+            continue
+        if any(p in excluded_parts for p in rel_parts):
+            continue
+        if xaml.name.lower() in {"app.xaml", "appshell.xaml", "styles.xaml", "colors.xaml"}:
+            continue
+        in_views = any(p.lower() == "views" for p in rel_parts[:-1])
+        is_page = xaml.stem.lower().endswith("page")
+        if in_views or is_page:
+            screen_key = xaml.stem
+            base_stem = re.sub(r"(Page|View)$", "", screen_key, flags=re.IGNORECASE) or screen_key
+            # Avoid duplicate entries if e.g. both Habit and HabitPage exist
+            matched_existing = None
+            for existing_key, tokens in screens.items():
+                if screen_key.lower() in tokens or base_stem.lower() in tokens:
+                    matched_existing = existing_key
+                    break
+            if matched_existing:
+                screens[matched_existing].update({screen_key.lower(), base_stem.lower()})
+            else:
+                screens[screen_key] = {screen_key.lower(), base_stem.lower()}
+
+    image_exts = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
+    image_files: list[Path] = []
+    if images_dir.is_dir():
+        image_files = [p for p in sorted(images_dir.rglob("*")) if p.is_file() and p.suffix.lower() in image_exts and p.stat().st_size > 0]
+
+    if screens:
+        if not image_files:
+            screen_list = ", ".join(sorted(screens.keys()))
+            issues.append(
+                {
+                    "kind": "missing-images",
+                    "message": f"No images found in Learning/Images/ for project screens ({screen_list}). Capture via MAUI DevFlow or HTML mockup + Capture-Mockup-Blocks.py.",
+                }
+            )
+        else:
+            for screen_key, candidate_tokens in screens.items():
+                has_match = False
+                for img in image_files:
+                    img_stem_low = img.stem.lower()
+                    parent_low = img.parent.name.lower()
+                    if any(
+                        img_stem_low == tok
+                        or img_stem_low.startswith(tok + "-")
+                        or img_stem_low.startswith(tok + "_")
+                        or tok in img_stem_low
+                        or parent_low == tok
+                        for tok in candidate_tokens
+                    ):
+                        has_match = True
+                        break
+                if not has_match:
+                    issues.append(
+                        {
+                            "kind": "missing-screen-image",
+                            "message": f"No image found in Learning/Images/ for screen '{screen_key}' (capture live via MAUI DevFlow or fallback HTML mockup + Capture-Mockup-Blocks.py).",
+                        }
+                    )
+
+    return issues
 
 
 def validate_html(html_path: Path) -> list[dict[str, object]]:
@@ -136,7 +242,15 @@ def main() -> int:
     report_path = Path(args.report).resolve()
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
+    if args.project_root:
+        project_root = Path(args.project_root).resolve()
+    elif pdf_path.parent.name.lower() == "learning":
+        project_root = pdf_path.parent.parent.resolve()
+    else:
+        project_root = Path.cwd().resolve()
+
     report: dict[str, object] = {"html": str(html_path), "pdf": str(pdf_path), "issues": []}
+    report["issues"].extend(validate_screens_and_pdf_freshness(project_root, pdf_path))
     try:
         report["issues"].extend(validate_html(html_path))
         report["issues"].extend(validate_pdf(pdf_path, tuple(DEFAULT_PLACEHOLDERS) + tuple(args.placeholder)))

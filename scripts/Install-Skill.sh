@@ -6,6 +6,7 @@ PROJECT_PATH="${2:-.}"
 UPGRADE=false
 INSTALL_LEARNING_BOOK_DEPENDENCIES=false
 SKIP_DEVFLOW=false
+SKIP_CLI=false
 
 for arg in "${@:3}"; do
   case "$arg" in
@@ -18,8 +19,11 @@ for arg in "${@:3}"; do
     --skip-devflow|--no-devflow)
       SKIP_DEVFLOW=true
       ;;
+    --skip-cli|--no-cli|--skip-devflow-cli)
+      SKIP_CLI=true
+      ;;
     *)
-      echo "Usage: ./scripts/Install-Skill.sh [Project|Codex|ClaudeCode] [ProjectPath] [--upgrade] [--install-learning-book-dependencies] [--skip-devflow]" >&2
+      echo "Usage: ./scripts/Install-Skill.sh [Project|Codex|ClaudeCode] [ProjectPath] [--upgrade] [--install-learning-book-dependencies] [--skip-devflow] [--skip-cli]" >&2
       exit 1
       ;;
   esac
@@ -162,11 +166,14 @@ case "$TARGET" in
     if [ "$SKIP_DEVFLOW" = true ]; then
       echo "[SKIP] MAUI DevFlow automatic injection skipped (--skip-devflow)."
     elif [ -f "$PROJECT_SCRIPTS_DEST/Ensure-Maui-DevFlow.sh" ]; then
+      DEVFLOW_ARGS=("$RESOLVED_PROJECT")
       if [ "$UPGRADE" = true ]; then
-        bash "$PROJECT_SCRIPTS_DEST/Ensure-Maui-DevFlow.sh" "$RESOLVED_PROJECT" --upgrade
-      else
-        bash "$PROJECT_SCRIPTS_DEST/Ensure-Maui-DevFlow.sh" "$RESOLVED_PROJECT"
+        DEVFLOW_ARGS+=("--upgrade")
       fi
+      if [ "$SKIP_CLI" = true ]; then
+        DEVFLOW_ARGS+=("--skip-cli")
+      fi
+      bash "$PROJECT_SCRIPTS_DEST/Ensure-Maui-DevFlow.sh" "${DEVFLOW_ARGS[@]}"
     fi
 
     echo "Installed MAUI K12 Baton Workflow into project: $RESOLVED_PROJECT"
