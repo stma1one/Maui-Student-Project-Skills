@@ -26,7 +26,12 @@ Read this reference during `PLANNING_COACH`, `EXECUTION_AGENT`, `CODE_LEARNING_R
   - Use `*Async` animation methods (`FadeToAsync`, `ScaleToAsync`, `TranslateToAsync`, `RotateToAsync`) instead of obsolete `FadeTo`, `ScaleTo`, `TranslateTo`, or `RotateTo`.
   - Use `CollectionView` instead of obsolete `ListView` or `TableView`.
   - Do not use obsolete `MessagingCenter` (use direct MVVM/Service coordination, C# events, or `WeakReferenceMessenger` from `CommunityToolkit.Mvvm.Messaging`) or obsolete `Device.BeginInvokeOnMainThread` (use `MainThread.BeginInvokeOnMainThread`).
-- Start students with explicit property setters (`if (_field == value) return; _field = value; OnPropertyChanged();`). Do not use `SetProperty(ref _field, value)` until `Learning/Student-Mastery.md` records that the student demonstrates `ref`, backing fields, equality checks, and `OnPropertyChanged`.
+- **Property Setters & `SetProperty(ref ...)` Soft-Gate Policy:**
+  - **ViewModel Scope Only:** This rule applies strictly to `ViewModel` classes and `BaseViewModel` (`ViewModels/*.cs` or `*ViewModel.cs`).
+  - **Custom Views Exemption:** Custom controls and views in `Views/` or `Controls/` (`BindableObject` / `ContentView`) that use `SetValue` or internal helper methods are explicitly exempt from this rule.
+  - **Soft-Gate Workflow (Advisory Warning & Student Choice):** In ViewModels, prefer starting students with explicit 3-line property setters (`if (_field == value) return; _field = value; OnPropertyChanged();`). When `SetProperty(ref _field, value)` is encountered or proposed before `Learning/Student-Mastery.md` records mastery of `ref` and `SetProperty`, do **not** fail the build (`Scripts/Validate-Maui-ObsoleteApis.ps1/.sh` emits a non-blocking `[PEDAGOGICAL WARNING]` and exits `0`). Instead, briefly explain how `ref` parameter passing and backing-field updates work inside `SetProperty` and ask the student to choose:
+    - **Option A (אפשרות א'):** Replace with the explicit 3-line setter (`if (_field == value) return; _field = value; OnPropertyChanged();` — recommended for Bagrut clarity).
+    - **Option B (אפשרות ב'):** Keep `SetProperty(ref _field, value)`, learn the `ref` concept now, and record it in `Learning/Student-Mastery.md` (and explain it in `Learning/MAUI-Learning-Book.md`).
 - Prefer `ICommand.CanExecute` over explicit `IsEnabled` bindings in XAML buttons and interactive controls. Use `CanExecute` with a meaningful condition and refresh it via `ChangeCanExecute()` / `CanExecuteChanged` when relevant state changes.
 
 ## Targeted Documentation Verification (High-Friction Triggers)

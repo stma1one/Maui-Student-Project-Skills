@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -343,11 +344,12 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
     ensure_py = repo_root / "project-template/Scripts/Ensure-Maui-DevFlow.py"
     ensure_sh = repo_root / "project-template/Scripts/Ensure-Maui-DevFlow.sh"
     obsolete_sh = repo_root / "project-template/Scripts/Validate-Maui-ObsoleteApis.sh"
+    obsolete_ps1 = repo_root / "project-template/Scripts/Validate-Maui-ObsoleteApis.ps1"
 
     with tempfile.TemporaryDirectory(prefix="maui_eval_test_") as tmp_dir:
         tmp_path = Path(tmp_dir)
 
-        # 1. net9.0-android project MUST be skipped by Ensure-Maui-DevFlow (both .py and Python-less .sh)
+        # 1. net9.0-android project MUST be skipped by Ensure-Maui-DevFlow
         net9_dir = tmp_path / "net9_app"
         net9_dir.mkdir()
         net9_csproj = net9_dir / "SampleNet9.csproj"
@@ -366,7 +368,7 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
         if "Microsoft.Maui.DevFlow" in net9_csproj.read_text(encoding="utf-8") or "AddMauiDevFlowAgent" in net9_mp.read_text(encoding="utf-8"):
             errors.append("Ensure-Maui-DevFlow.py injected DevFlow into a net9.0-android project!")
 
-        # 2. net10.0-android project MUST receive pinned 0.1.0-preview.14.26531.2 on initial install, even without Python
+        # 2. net10.0-android project MUST receive pinned 0.1.0-preview.14.26531.2 on initial install
         net10_dir = tmp_path / "net10_app"
         net10_dir.mkdir()
         net10_csproj = net10_dir / "SampleNet10.csproj"
@@ -380,34 +382,7 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
             encoding="utf-8",
         )
 
-        # Create a bin directory without python/python3 to test Python-less Bash execution
-        no_py_bin = tmp_path / "no_py_bin"
-        no_py_bin.mkdir()
-        for tool in ("bash", "sh", "awk", "grep", "sed", "find", "sort", "tr", "dirname", "basename", "mkdir", "cp", "mv", "rm", "cat", "cmp", "chmod", "head", "wc", "id"):
-            for sys_dir in ("/usr/bin", "/bin"):
-                cand = Path(sys_dir) / tool
-                if cand.exists():
-                    (no_py_bin / tool).symlink_to(cand)
-                    break
-
-        no_py_env = {**os.environ, "PATH": str(no_py_bin), "MAUI_NO_PYTHON_INSTALL": "1"}
-        res_nopy_inject = subprocess.run(["/bin/bash", str(ensure_sh), str(net10_dir)], env=no_py_env, capture_output=True, text=True)
-        if res_nopy_inject.returncode != 0:
-            errors.append(f"Ensure-Maui-DevFlow.sh failed when Python was absent: {res_nopy_inject.stdout} {res_nopy_inject.stderr}")
-        if 'Version="0.1.0-preview.14.26531.2"' not in net10_csproj.read_text(encoding="utf-8"):
-            errors.append("Ensure-Maui-DevFlow.sh (without Python) did not inject pinned 0.1.0-preview.14.26531.2 into net10.0 .csproj.")
-        if "AddMauiDevFlowAgent()" not in net10_mp.read_text(encoding="utf-8"):
-            errors.append("Ensure-Maui-DevFlow.sh (without Python) did not inject AddMauiDevFlowAgent() into MauiProgram.cs.")
-
-        # Valid Debug-conditioned net10 project must pass Validate-Maui-ObsoleteApis.sh both with and without Python
-        res_valid_py = subprocess.run(["/bin/bash", str(obsolete_sh), str(net10_dir)], capture_output=True, text=True)
-        if res_valid_py.returncode != 0:
-            errors.append(f"Validate-Maui-ObsoleteApis.sh failed on valid net10 Debug-only DevFlow project: {res_valid_py.stdout}")
-        res_valid_nopy = subprocess.run(["/bin/bash", str(obsolete_sh), str(net10_dir)], env=no_py_env, capture_output=True, text=True)
-        if res_valid_nopy.returncode != 0:
-            errors.append(f"Validate-Maui-ObsoleteApis.sh (without Python) failed on valid net10 project: {res_valid_nopy.stdout}")
-
-        # 3. Test bypasses: Condition="'$(Configuration)' != 'Debug'" and #if !DEBUG MUST fail both with and without Python!
+        # 3. Leak test project: Condition="'$(Configuration)' != 'Debug'" and #if !DEBUG MUST fail!
         leak_dir = tmp_path / "leak_app"
         leak_dir.mkdir()
         leak_csproj = leak_dir / "LeakApp.csproj"
@@ -420,13 +395,124 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
             "#if !DEBUG\nusing Microsoft.Maui.DevFlow.Agent;\n#endif\npublic static class MauiProgram {\n    public static void Init() {\n#if !DEBUG\n        builder.AddMauiDevFlowAgent();\n#endif\n    }\n}\n",
             encoding="utf-8",
         )
-        res_leak_py = subprocess.run(["/bin/bash", str(obsolete_sh), str(leak_dir)], capture_output=True, text=True)
-        if res_leak_py.returncode == 0 or "[RELEASE LEAK]" not in res_leak_py.stdout:
-            errors.append("Validate-Maui-ObsoleteApis.sh (with Python) did NOT catch != 'Debug' and #if !DEBUG bypasses!")
 
-        res_leak_nopy = subprocess.run(["/bin/bash", str(obsolete_sh), str(leak_dir)], env=no_py_env, capture_output=True, text=True)
-        if res_leak_nopy.returncode == 0 or "[RELEASE LEAK]" not in res_leak_nopy.stdout:
-            errors.append("Validate-Maui-ObsoleteApis.sh (without Python) did NOT catch != 'Debug' and #if !DEBUG bypasses!")
+        # 4. SetProperty(ref ...) soft-gate test project (ViewModels vs Views/Controls & Student-Mastery.md)
+        sp_dir = tmp_path / "setprop_app"
+        (sp_dir / "ViewModels").mkdir(parents=True)
+        (sp_dir / "Views").mkdir(parents=True)
+        (sp_dir / "Controls").mkdir(parents=True)
+        (sp_dir / "Learning").mkdir(parents=True)
+        (sp_dir / "ViewModels/ExampleViewModel.cs").write_text(
+            "public class ExampleViewModel {\n    private string _title = \"\";\n    public string Title {\n        get => _title;\n        set => SetProperty(ref _title, value);\n    }\n}\n",
+            encoding="utf-8",
+        )
+        (sp_dir / "Views/CustomView.cs").write_text(
+            "public class CustomView {\n    private string _label = \"\";\n    public void Update(string v) => SetProperty(ref _label, v);\n}\n",
+            encoding="utf-8",
+        )
+        (sp_dir / "Controls/BadgeControl.cs").write_text(
+            "public class BadgeControl {\n    private int _count;\n    public void SetCount(int c) => SetProperty(ref _count, c);\n}\n",
+            encoding="utf-8",
+        )
+        default_mastery = (repo_root / "project-template/Learning/Student-Mastery.md").read_text(encoding="utf-8")
+        (sp_dir / "Learning/Student-Mastery.md").write_text(default_mastery, encoding="utf-8")
+
+        if os.name != "nt" and Path("/bin/bash").exists():
+            # Create a bin directory without python/python3 to test Python-less Bash execution
+            no_py_bin = tmp_path / "no_py_bin"
+            no_py_bin.mkdir()
+            for tool in ("bash", "sh", "awk", "grep", "sed", "find", "sort", "tr", "dirname", "basename", "mkdir", "cp", "mv", "rm", "cat", "cmp", "chmod", "head", "wc", "id"):
+                for sys_dir in ("/usr/bin", "/bin"):
+                    cand = Path(sys_dir) / tool
+                    if cand.exists():
+                        (no_py_bin / tool).symlink_to(cand)
+                        break
+
+            no_py_env = {**os.environ, "PATH": str(no_py_bin), "MAUI_NO_PYTHON_INSTALL": "1"}
+            res_nopy_inject = subprocess.run(["/bin/bash", str(ensure_sh), str(net10_dir)], env=no_py_env, capture_output=True, text=True)
+            if res_nopy_inject.returncode != 0:
+                errors.append(f"Ensure-Maui-DevFlow.sh failed when Python was absent: {res_nopy_inject.stdout} {res_nopy_inject.stderr}")
+            if 'Version="0.1.0-preview.14.26531.2"' not in net10_csproj.read_text(encoding="utf-8"):
+                errors.append("Ensure-Maui-DevFlow.sh (without Python) did not inject pinned 0.1.0-preview.14.26531.2 into net10.0 .csproj.")
+            if "AddMauiDevFlowAgent()" not in net10_mp.read_text(encoding="utf-8"):
+                errors.append("Ensure-Maui-DevFlow.sh (without Python) did not inject AddMauiDevFlowAgent() into MauiProgram.cs.")
+
+            res_valid_py = subprocess.run(["/bin/bash", str(obsolete_sh), str(net10_dir)], capture_output=True, text=True)
+            if res_valid_py.returncode != 0:
+                errors.append(f"Validate-Maui-ObsoleteApis.sh failed on valid net10 Debug-only DevFlow project: {res_valid_py.stdout}")
+            res_valid_nopy = subprocess.run(["/bin/bash", str(obsolete_sh), str(net10_dir)], env=no_py_env, capture_output=True, text=True)
+            if res_valid_nopy.returncode != 0:
+                errors.append(f"Validate-Maui-ObsoleteApis.sh (without Python) failed on valid net10 project: {res_valid_nopy.stdout}")
+
+            res_leak_py = subprocess.run(["/bin/bash", str(obsolete_sh), str(leak_dir)], capture_output=True, text=True)
+            if res_leak_py.returncode == 0 or "[RELEASE LEAK]" not in res_leak_py.stdout:
+                errors.append("Validate-Maui-ObsoleteApis.sh (with Python) did NOT catch != 'Debug' and #if !DEBUG bypasses!")
+
+            res_leak_nopy = subprocess.run(["/bin/bash", str(obsolete_sh), str(leak_dir)], env=no_py_env, capture_output=True, text=True)
+            if res_leak_nopy.returncode == 0 or "[RELEASE LEAK]" not in res_leak_nopy.stdout:
+                errors.append("Validate-Maui-ObsoleteApis.sh (without Python) did NOT catch != 'Debug' and #if !DEBUG bypasses!")
+
+            res_sp_warn = subprocess.run(["/bin/bash", str(obsolete_sh), str(sp_dir)], capture_output=True, text=True)
+            if res_sp_warn.returncode != 0:
+                errors.append(f"Validate-Maui-ObsoleteApis.sh failed (non-zero exit) on SetProperty pedagogical warning: {res_sp_warn.stdout}")
+            if "[PEDAGOGICAL WARNING] ViewModels/ExampleViewModel.cs:5 - SetProperty(ref...) detected." not in res_sp_warn.stdout:
+                errors.append(f"Validate-Maui-ObsoleteApis.sh did not emit expected SetProperty pedagogical warning for ViewModel: {res_sp_warn.stdout}")
+            if "CustomView.cs" in res_sp_warn.stdout or "BadgeControl.cs" in res_sp_warn.stdout:
+                errors.append("Validate-Maui-ObsoleteApis.sh did not skip Views/ and Controls/ for SetProperty check!")
+        else:
+            # Windows / cross-platform Python + PowerShell verification
+            res_py_inject = subprocess.run([sys.executable, str(ensure_py), "--project-root", str(net10_dir)], capture_output=True, text=True)
+            if res_py_inject.returncode != 0:
+                errors.append(f"Ensure-Maui-DevFlow.py failed on net10 project: {res_py_inject.stdout} {res_py_inject.stderr}")
+            if 'Version="0.1.0-preview.14.26531.2"' not in net10_csproj.read_text(encoding="utf-8"):
+                errors.append("Ensure-Maui-DevFlow.py did not inject pinned 0.1.0-preview.14.26531.2 into net10.0 .csproj.")
+            if "AddMauiDevFlowAgent()" not in net10_mp.read_text(encoding="utf-8"):
+                errors.append("Ensure-Maui-DevFlow.py did not inject AddMauiDevFlowAgent() into MauiProgram.cs.")
+
+            pwsh_exe = shutil.which("powershell.exe") or shutil.which("pwsh")
+            if pwsh_exe:
+                res_valid_ps = subprocess.run(
+                    [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(obsolete_ps1), "-ProjectRoot", str(net10_dir)],
+                    capture_output=True,
+                    text=True,
+                )
+                if res_valid_ps.returncode != 0:
+                    errors.append(f"Validate-Maui-ObsoleteApis.ps1 failed on valid net10 project: {res_valid_ps.stdout}")
+
+                res_leak_ps = subprocess.run(
+                    [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(obsolete_ps1), "-ProjectRoot", str(leak_dir)],
+                    capture_output=True,
+                    text=True,
+                )
+                if res_leak_ps.returncode == 0 or "[RELEASE LEAK]" not in res_leak_ps.stdout:
+                    errors.append("Validate-Maui-ObsoleteApis.ps1 did NOT catch != 'Debug' and #if !DEBUG bypasses!")
+
+                # Verify SetProperty(ref...) soft-gate in PowerShell: unmastered -> warning + exit 0; Views/Controls ignored
+                res_sp_ps = subprocess.run(
+                    [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(obsolete_ps1), "-ProjectRoot", str(sp_dir)],
+                    capture_output=True,
+                    text=True,
+                )
+                if res_sp_ps.returncode != 0:
+                    errors.append(f"Validate-Maui-ObsoleteApis.ps1 returned non-zero on SetProperty pedagogical warning: {res_sp_ps.stdout}")
+                if "[PEDAGOGICAL WARNING] ViewModels/ExampleViewModel.cs:5 - SetProperty(ref...) detected." not in res_sp_ps.stdout:
+                    errors.append(f"Validate-Maui-ObsoleteApis.ps1 did not emit expected SetProperty warning: {res_sp_ps.stdout}")
+                if "CustomView.cs" in res_sp_ps.stdout or "BadgeControl.cs" in res_sp_ps.stdout:
+                    errors.append("Validate-Maui-ObsoleteApis.ps1 did not skip Views/ and Controls/ for SetProperty check!")
+
+                # Now mark INotifyPropertyChanged as Routine eligibility: Yes in Student-Mastery.md and verify warning is silenced
+                mastered_text = default_mastery.replace(
+                    "### INotifyPropertyChanged\n- Level: Not introduced\n- Theory evidence: None\n- Applied coding evidence: None\n- Evidence source: None\n- Routine eligibility: No",
+                    "### INotifyPropertyChanged\n- Level: Can work independently\n- Theory evidence: Explained ref and SetProperty\n- Applied coding evidence: Implemented ViewModel properties\n- Evidence source: ViewModels/ExampleViewModel.cs\n- Routine eligibility: Yes",
+                )
+                (sp_dir / "Learning/Student-Mastery.md").write_text(mastered_text, encoding="utf-8")
+                res_sp_mastered_ps = subprocess.run(
+                    [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(obsolete_ps1), "-ProjectRoot", str(sp_dir)],
+                    capture_output=True,
+                    text=True,
+                )
+                if res_sp_mastered_ps.returncode != 0 or "[PEDAGOGICAL WARNING]" in res_sp_mastered_ps.stdout:
+                    errors.append(f"Validate-Maui-ObsoleteApis.ps1 did not pass silently when SetProperty/ref is mastered: {res_sp_mastered_ps.stdout}")
 
     return errors
 

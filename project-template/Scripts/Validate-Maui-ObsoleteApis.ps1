@@ -171,6 +171,78 @@ foreach ($mp in $mauiProgramFiles) {
     }
 }
 
+function Test-StudentMasteredSetPropertyRef([string]$Root) {
+    $masteryPath = Join-Path $Root "Learning\Student-Mastery.md"
+    if (-not (Test-Path -LiteralPath $masteryPath)) {
+        return $false
+    }
+    $content = Get-Content -LiteralPath $masteryPath -Raw
+    if ([string]::IsNullOrWhiteSpace($content)) {
+        return $false
+    }
+
+    foreach ($rawLine in ($content -split "\r?\n")) {
+        $line = $rawLine.Trim()
+        if ($line -notmatch '(?i)^-?\s*Needs practice:' -and
+            $line -match '(?i)(\bSetProperty\b|\bref\b)' -and
+            $line -match '(?i)(Routine eligibility:\s*Yes|\bApproved\b|\bMastered\b)') {
+            return $true
+        }
+    }
+
+    $sections = [regex]::Split($content, '(?m)^###\s+')
+    foreach ($sec in $sections) {
+        if ([string]::IsNullOrWhiteSpace($sec)) { continue }
+        $secLines = $sec -split "\r?\n"
+        $header = $secLines[0].Trim()
+        $body = ($secLines | Select-Object -Skip 1) -join "`n"
+
+        $routineYes = $body -match '(?im)^-?\s*Routine eligibility:\s*Yes\b'
+        $levelOk = $body -match '(?im)^-?\s*Level:\s*(Understands|Can work independently)\b'
+        $hasRefEvidence = $false
+        foreach ($bLine in ($body -split "\r?\n")) {
+            if ($bLine -match '(?i)^-?\s*(Theory evidence|Applied coding evidence):' -and
+                $bLine -notmatch '(?i):\s*None\s*$' -and
+                $bLine -match '(?i)(\bSetProperty\b|\bref\b)') {
+                $hasRefEvidence = $true
+            }
+        }
+
+        if ($header -match '(?i)\b(SetProperty|ref)\b') {
+            if ($routineYes -or $levelOk) { return $true }
+        } elseif ($header -match '(?i)^(Properties|INotifyPropertyChanged)\b') {
+            if ($routineYes -or ($levelOk -and $hasRefEvidence)) { return $true }
+        }
+    }
+    return $false
+}
+
+# Soft pedagogical check for SetProperty(ref ...) in ViewModels only (skips Views/, Controls/, Platforms/)
+$resolvedRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path.TrimEnd('\', '/')
+$refMastered = Test-StudentMasteredSetPropertyRef $ProjectRoot
+
+if (-not $refMastered) {
+    $vmFiles = $files | Where-Object {
+        if ($_.Extension -ne ".cs") { return $false }
+        $rel = $_.FullName.Substring($resolvedRoot.Length).TrimStart('\', '/') -replace '\\', '/'
+        if ($rel -match '(^|/)(Views|Controls|Platforms)/') { return $false }
+        return ($rel -match '(^|/)ViewModels/' -or $_.Name -match 'ViewModel\.cs$')
+    }
+
+    foreach ($vmFile in $vmFiles) {
+        $relDisplay = $vmFile.FullName.Substring($resolvedRoot.Length).TrimStart('\', '/') -replace '\\', '/'
+        $vmLines = Get-Content -LiteralPath $vmFile.FullName
+        for ($i = 0; $i -lt $vmLines.Count; $i++) {
+            $codeNoComment = [regex]::Replace($vmLines[$i], '//.*$', '')
+            if ($codeNoComment -match '\bSetProperty\s*(?:<[^>]+>)?\s*\(\s*ref\b') {
+                Write-Host "[PEDAGOGICAL WARNING] ${relDisplay}:$($i + 1) - SetProperty(ref...) detected." -ForegroundColor Cyan
+                Write-Host "Notice: 'ref' and 'SetProperty' concept is not yet recorded as mastered in Learning/Student-Mastery.md."
+                Write-Host "Suggestion: Keep as-is or replace with explicit 3-line setter."
+            }
+        }
+    }
+}
+
 if ($found) {
     Write-Host "RESULT: CHECK REQUIRED" -ForegroundColor Yellow
     exit 1

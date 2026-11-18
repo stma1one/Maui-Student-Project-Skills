@@ -204,7 +204,7 @@
     {
       "id": "explicit-setter-before-setproperty-ref-guardrail",
       "prompt": "We are in EXECUTION_AGENT scaffolding ProfileViewModel.cs. In Student-Mastery.md, Properties and INotifyPropertyChanged are marked as 'Practicing' (the student has not yet demonstrated ref parameters). Should we use SetProperty(ref _username, value) or an explicit setter?",
-      "expected_output": "Start with 'Mode: MAXIMIZE STUDENT CAPABILITY', enforce the guardrail from maui-specialist-guardrails.md requiring explicit property setters (checking equality, assigning the backing field, and calling OnPropertyChanged) rather than SetProperty(ref _field, value) until the student demonstrates ref, backing fields, equality checks, and OnPropertyChanged, and end in EXECUTION_AGENT.",
+      "expected_output": "Start with 'Mode: MAXIMIZE STUDENT CAPABILITY', apply the soft-gate guardrail from maui-specialist-guardrails.md for ViewModels (preferring the explicit 3-line property setter with equality check, backing field assignment, and OnPropertyChanged(), while explaining how SetProperty(ref _field, value) works with ref parameter passing and offering the student the choice to either use the explicit 3-line setter or learn/record ref mastery in Student-Mastery.md, without failing the build), and end in EXECUTION_AGENT.",
       "assertions": {
         "starts_with": "Mode: MAXIMIZE STUDENT CAPABILITY",
         "must_contain": [

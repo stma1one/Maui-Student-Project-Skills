@@ -310,6 +310,83 @@ else
     done <<< "$MP_FILES"
 fi
 
+# Soft pedagogical check for SetProperty(ref ...) in ViewModels only (skips Views/, Controls/, Platforms/)
+MASTERY_FILE="$PROJECT_ROOT/Learning/Student-Mastery.md"
+REF_MASTERED=0
+if [ -f "$MASTERY_FILE" ]; then
+    if awk '
+        BEGIN { section = ""; level_ok = 0; routine_yes = 0; has_ref_evidence = 0; mastered = 0 }
+        function check_section() {
+            if (section ~ /^(properties|inotifypropertychanged)$/) {
+                if (routine_yes || (level_ok && has_ref_evidence)) mastered = 1
+            } else if (section ~ /(setproperty|(^|[^a-z0-9_])ref([^a-z0-9_]|$))/) {
+                if (routine_yes || level_ok) mastered = 1
+            }
+        }
+        /^###[ \t]+/ {
+            check_section()
+            s = tolower($0)
+            sub(/^###[ \t]+/, "", s)
+            gsub(/[ \t\r]+$/, "", s)
+            section = s
+            level_ok = 0; routine_yes = 0; has_ref_evidence = 0
+            next
+        }
+        {
+            line = tolower($0)
+            gsub(/\r$/, "", line)
+            if (line !~ /^-?[ \t]*needs practice:/ &&
+                line ~ /(setproperty|(^|[^a-z0-9_])ref([^a-z0-9_]|$))/ &&
+                line ~ /(routine eligibility:[ \t]*yes|(^|[^a-z0-9_])(approved|mastered)([^a-z0-9_]|$))/) {
+                mastered = 1
+            }
+            if (line ~ /^-?[ \t]*level:[ \t]*(understands|can work independently)/) level_ok = 1
+            if (line ~ /^-?[ \t]*routine eligibility:[ \t]*yes/) routine_yes = 1
+            if (line ~ /^-?[ \t]*(theory evidence|applied coding evidence):/ &&
+                line !~ /:[ \t]*none[ \t]*$/ &&
+                line ~ /(setproperty|(^|[^a-z0-9_])ref([^a-z0-9_]|$))/) {
+                has_ref_evidence = 1
+            }
+        }
+        END {
+            check_section()
+            exit (mastered ? 0 : 1)
+        }
+    ' "$MASTERY_FILE"; then
+        REF_MASTERED=1
+    fi
+fi
+
+if [ "$REF_MASTERED" -eq 0 ]; then
+    NORM_ROOT="${PROJECT_ROOT%/}"
+    while IFS= read -r file; do
+        if [ -f "$file" ] && [[ "$file" == *.cs ]]; then
+            rel_path="${file#"$NORM_ROOT"/}"
+            rel_path="${rel_path//\\//}"
+            case "$rel_path" in
+                Views/*|*/Views/*|Controls/*|*/Controls/*|Platforms/*|*/Platforms/*)
+                    continue
+                    ;;
+            esac
+            base_name="$(basename "$rel_path")"
+            if [[ "$rel_path" == ViewModels/* || "$rel_path" == */ViewModels/* || "$base_name" == *ViewModel.cs ]]; then
+                awk -v rel="$rel_path" '
+                    {
+                        code = $0
+                        sub(/\r$/, "", code)
+                        sub(/\/\/.*$/, "", code)
+                        if (code ~ /(^|[^A-Za-z0-9_])SetProperty[ \t]*(<[^>]+>)?[ \t]*\([ \t]*ref([^A-Za-z0-9_]|$)/) {
+                            printf "\033[0;36m[PEDAGOGICAL WARNING] %s:%d - SetProperty(ref...) detected.\033[0m\n", rel, NR
+                            print "Notice: \x27ref\x27 and \x27SetProperty\x27 concept is not yet recorded as mastered in Learning/Student-Mastery.md."
+                            print "Suggestion: Keep as-is or replace with explicit 3-line setter."
+                        }
+                    }
+                ' "$file"
+            fi
+        fi
+    done <<< "$SOURCE_FILES"
+fi
+
 if [ $FOUND -eq 1 ]; then
     echo -e "\033[0;33mRESULT: CHECK REQUIRED\033[0m"
     exit 1
