@@ -92,7 +92,7 @@ def find_test_csproj_files(root: pathlib.Path) -> list[pathlib.Path]:
             continue
         try:
             text = csproj.read_text(encoding="utf-8", errors="ignore")
-            if "<IsTestProject>true</IsTestProject>" in text or 'Include="xunit"' in text:
+            if "<IsTestProject>true</IsTestProject>" in text or 'Include="xunit.v3"' in text or 'Include="xunit"' in text:
                 results.append(csproj)
         except OSError:
             pass
@@ -100,10 +100,31 @@ def find_test_csproj_files(root: pathlib.Path) -> list[pathlib.Path]:
 
 
 def parse_dotnet_test_counts(output: str) -> tuple[int, int]:
-    """Extract (passed_count, failed_count) from dotnet test stdout/stderr across locales."""
+    """Extract (passed_count, failed_count) from Microsoft.Testing.Platform, xUnit v3 in-process runner, or VSTest output."""
     passed = 0
     failed = 0
 
+    # 1. Microsoft.Testing.Platform summary: "failed: 0\n  succeeded: 1"
+    m_mtp_succ = re.findall(r"(?m)^\s*succeeded:\s*(\d+)\b", output, re.IGNORECASE)
+    m_mtp_fail = re.findall(r"(?m)^\s*failed:\s*(\d+)\b", output, re.IGNORECASE)
+    if m_mtp_succ or m_mtp_fail:
+        passed += sum(int(x) for x in m_mtp_succ)
+        failed += sum(int(x) for x in m_mtp_fail)
+        return passed, failed
+
+    # 2. xUnit.net v3 In-Process Runner summary: "Total: 1, Errors: 0, Failed: 0, Skipped: 0"
+    for m_xv3 in re.finditer(
+        r"Total:\s*(\d+),\s*Errors:\s*(\d+),\s*Failed:\s*(\d+),\s*Skipped:\s*(\d+)",
+        output,
+        re.IGNORECASE,
+    ):
+        total, errs, fails, skipped = (int(m_xv3.group(1)), int(m_xv3.group(2)), int(m_xv3.group(3)), int(m_xv3.group(4)))
+        failed += errs + fails
+        passed += max(0, total - errs - fails - skipped)
+    if passed > 0 or failed > 0:
+        return passed, failed
+
+    # 3. Classic VSTest summary
     for m in re.finditer(r"Passed!\s*-\s*Failed:\s*(\d+),\s*Passed:\s*(\d+)", output, re.IGNORECASE):
         failed += int(m.group(1))
         passed += int(m.group(2))
@@ -113,7 +134,7 @@ def parse_dotnet_test_counts(output: str) -> tuple[int, int]:
         passed += int(m.group(2))
 
     if passed == 0 and failed == 0:
-        m_p = re.findall(r"(?:Passed|עברו בהצלחה)\s*:\s*(\d+)", output, re.IGNORECASE)
+        m_p = re.findall(r"(?:Passed|Succeeded|עברו בהצלחה)\s*:\s*(\d+)", output, re.IGNORECASE)
         m_f = re.findall(r"(?:Failed|נכשלו)\s*:\s*(\d+)", output, re.IGNORECASE)
         if m_p:
             passed = sum(int(x) for x in m_p)
@@ -156,9 +177,25 @@ def main() -> int:
         print("RESULT: CHECK REQUIRED", file=sys.stderr)
         return 1
 
-    # Verify at least one [Fact] or [Theory] exists in the test project
+    # Verify each test .csproj uses xunit.v3 (reject legacy xunit v2) and count [Fact] / [Theory] attributes
     fact_count = 0
     for t_csproj in test_csprojs:
+        csproj_txt = t_csproj.read_text(encoding="utf-8", errors="ignore")
+        if re.search(r'<PackageReference\s+[^>]*Include\s*=\s*"xunit"\b', csproj_txt, re.IGNORECASE):
+            print(
+                f"[FAIL] {t_csproj.name} references legacy 'xunit' (v2). Must use 'xunit.v3' (latest stable). Run Ensure-Test-Project to upgrade automatically.",
+                file=sys.stderr,
+            )
+            print("RESULT: CHECK REQUIRED", file=sys.stderr)
+            return 1
+        if not re.search(r'<PackageReference\s+[^>]*Include\s*=\s*"xunit\.v3"', csproj_txt, re.IGNORECASE):
+            print(
+                f"[FAIL] {t_csproj.name} is missing PackageReference Include=\"xunit.v3\".",
+                file=sys.stderr,
+            )
+            print("RESULT: CHECK REQUIRED", file=sys.stderr)
+            return 1
+
         for cs_file in sorted(t_csproj.parent.rglob("*.cs")):
             if "/bin/" in cs_file.as_posix() or "/obj/" in cs_file.as_posix():
                 continue
@@ -171,19 +208,20 @@ def main() -> int:
         return 1
 
     if args.skip_dotnet_run:
-        print(f"RESULT: PASS (Static check: {len(test_csprojs)} test project(s), {fact_count} test method(s), effective writer: {effective_writer})")
+        print(f"RESULT: PASS (Static check: {len(test_csprojs)} xunit.v3 test project(s), {fact_count} test method(s), effective writer: {effective_writer})")
         return 0
 
     if shutil.which("dotnet") is None:
-        print("[FAIL] 'dotnet' CLI is not available in PATH to execute dotnet test.", file=sys.stderr)
+        print("[FAIL] 'dotnet' CLI is not available in PATH to execute tests.", file=sys.stderr)
         return 1
 
     total_passed = 0
     total_failed = 0
     for t_csproj in test_csprojs:
-        print(f"[INFO] Running: dotnet test {t_csproj} --verbosity normal")
+        # With xunit.v3 (<OutputType>Exe</OutputType>), `dotnet run --project` works across all .NET SDKs even without global.json MTP runner
+        print(f"[INFO] Running xunit.v3 test project: dotnet run --project {t_csproj}")
         proc = subprocess.run(
-            ["dotnet", "test", str(t_csproj), "--verbosity", "normal"],
+            ["dotnet", "run", "--project", str(t_csproj)],
             capture_output=True,
             text=True,
             check=False,
@@ -195,7 +233,7 @@ def main() -> int:
 
         if proc.returncode != 0 or failed > 0:
             print(combined_out, file=sys.stderr)
-            print(f"[FAIL] dotnet test failed for {t_csproj.name} (Passed: {passed}, Failed: {failed}, ExitCode: {proc.returncode}).", file=sys.stderr)
+            print(f"[FAIL] xunit.v3 test execution failed for {t_csproj.name} (Passed: {passed}, Failed: {failed}, ExitCode: {proc.returncode}).", file=sys.stderr)
             print("RESULT: CHECK REQUIRED", file=sys.stderr)
             return 1
 

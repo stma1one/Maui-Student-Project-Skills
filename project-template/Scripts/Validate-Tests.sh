@@ -37,14 +37,27 @@ if [ ! -s "$PROJECT_ROOT/Learning/Test-Documentation.md" ]; then
   exit 1
 fi
 
-OUT="$(dotnet test "$TEST_CSPROJ" --verbosity normal 2>&1)" || {
+if grep -q -E '<PackageReference[[:space:]]+[^>]*Include="xunit"' "$TEST_CSPROJ" 2>/dev/null; then
+  echo "[FAIL] $(basename "$TEST_CSPROJ") references legacy 'xunit' (v2). Must use 'xunit.v3' (latest stable)." >&2
+  exit 1
+fi
+
+OUT="$(dotnet run --project "$TEST_CSPROJ" 2>&1)" || {
   echo "$OUT" >&2
-  echo "[FAIL] dotnet test failed." >&2
+  echo "[FAIL] xunit.v3 test execution failed." >&2
   exit 1
 }
 
-PASSED="$(echo "$OUT" | grep -o -E 'Passed:[[:space:]]*[0-9]+' | grep -o -E '[0-9]+' | tail -n 1 || echo 0)"
-FAILED="$(echo "$OUT" | grep -o -E 'Failed:[[:space:]]*[0-9]+' | grep -o -E '[0-9]+' | tail -n 1 || echo 0)"
+if echo "$OUT" | grep -q -E 'Total:[[:space:]]*[0-9]+,[[:space:]]*Errors:[[:space:]]*[0-9]+,[[:space:]]*Failed:[[:space:]]*[0-9]+'; then
+  TOTAL="$(echo "$OUT" | grep -o -E 'Total:[[:space:]]*[0-9]+' | grep -o -E '[0-9]+' | tail -n 1 || echo 0)"
+  ERRS="$(echo "$OUT" | grep -o -E 'Errors:[[:space:]]*[0-9]+' | grep -o -E '[0-9]+' | tail -n 1 || echo 0)"
+  FAILS="$(echo "$OUT" | grep -o -E 'Failed:[[:space:]]*[0-9]+' | grep -o -E '[0-9]+' | tail -n 1 || echo 0)"
+  FAILED=$((ERRS + FAILS))
+  PASSED=$((TOTAL - FAILED))
+else
+  PASSED="$(echo "$OUT" | grep -o -E '(Passed|succeeded):[[:space:]]*[0-9]+' | grep -o -E '[0-9]+' | tail -n 1 || echo 0)"
+  FAILED="$(echo "$OUT" | grep -o -E '(Failed|failed):[[:space:]]*[0-9]+' | grep -o -E '[0-9]+' | tail -n 1 || echo 0)"
+fi
 
 if [ "${FAILED:-0}" -ne 0 ] || [ "${PASSED:-0}" -lt 1 ]; then
   echo "[FAIL] Unit test gate requires Failed == 0 and Passed >= 1 (Passed: ${PASSED:-0}, Failed: ${FAILED:-0})." >&2

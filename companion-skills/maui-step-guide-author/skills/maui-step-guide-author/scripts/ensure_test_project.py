@@ -26,6 +26,44 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.request
+
+# Minimum latest-stable baselines used when offline; when online, api.nuget.org is queried for the latest stable release.
+FALLBACK_STABLE_VERSIONS = {
+    "xunit.v3": "4.0.3",
+    "xunit.runner.visualstudio": "4.0.1",
+    "microsoft.net.test.sdk": "18.12.0",
+    "coverlet.collector": "10.1.1",
+}
+
+
+def version_sort_key(ver: str) -> tuple[int, int, int, str]:
+    m = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$", ver.strip())
+    if not m:
+        return (0, 0, 0, ver)
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)), m.group(4) or "")
+
+
+def resolve_latest_stable_nuget_version(package_id: str, offline: bool = False) -> str:
+    pkg_low = package_id.strip().lower()
+    fallback = FALLBACK_STABLE_VERSIONS.get(pkg_low, "1.0.0")
+    if offline:
+        return fallback
+    url = f"https://api.nuget.org/v3-flatcontainer/{pkg_low}/index.json"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "maui-k12-baton-workflow/1.4.1"})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            versions = data.get("versions", [])
+            if isinstance(versions, list):
+                stable = [str(v) for v in versions if isinstance(v, str) and "-" not in v and "*" not in v]
+                if stable:
+                    best = max(stable, key=version_sort_key)
+                    if version_sort_key(best) >= version_sort_key(fallback):
+                        return best
+    except Exception:
+        pass
+    return fallback
 
 EXCLUDED_DIRS = {
     ".git",
@@ -153,22 +191,27 @@ def ensure_maui_csproj_testable_tfm(csproj_path: pathlib.Path, base_tfm: str, dr
     return messages
 
 
-def build_test_csproj_xml(base_tfm: str, rel_maui_csproj: str) -> str:
+def build_test_csproj_xml(base_tfm: str, rel_maui_csproj: str, offline: bool = False) -> str:
+    xunit_v3_ver = resolve_latest_stable_nuget_version("xunit.v3", offline=offline)
+    runner_ver = resolve_latest_stable_nuget_version("xunit.runner.visualstudio", offline=offline)
+    sdk_ver = resolve_latest_stable_nuget_version("microsoft.net.test.sdk", offline=offline)
+    coverlet_ver = resolve_latest_stable_nuget_version("coverlet.collector", offline=offline)
     return f"""<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>{base_tfm}</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.2" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="coverlet.collector" Version="{coverlet_ver}" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="{sdk_ver}" />
+    <PackageReference Include="xunit.v3" Version="{xunit_v3_ver}" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="{runner_ver}" />
   </ItemGroup>
 
   <ItemGroup>
@@ -181,6 +224,65 @@ def build_test_csproj_xml(base_tfm: str, rel_maui_csproj: str) -> str:
 
 </Project>
 """
+
+
+def upgrade_existing_test_csproj_to_xunit_v3(test_csproj: pathlib.Path, offline: bool = False, dry_run: bool = False) -> str | None:
+    """If an existing *.Tests.csproj still references legacy xunit v2 or lacks OutputType=Exe, upgrade it to xunit.v3 latest stable."""
+    text = test_csproj.read_text(encoding="utf-8", errors="ignore")
+    updated = text
+    xunit_v3_ver = resolve_latest_stable_nuget_version("xunit.v3", offline=offline)
+    runner_ver = resolve_latest_stable_nuget_version("xunit.runner.visualstudio", offline=offline)
+
+    # Replace legacy <PackageReference Include="xunit" Version="..." /> with xunit.v3
+    updated = re.sub(
+        r'<PackageReference\s+Include="xunit"\s+Version="[^"]+"\s*/>',
+        f'<PackageReference Include="xunit.v3" Version="{xunit_v3_ver}" />',
+        updated,
+        flags=re.IGNORECASE,
+    )
+    updated = re.sub(
+        r'(<PackageReference\s+Include="xunit\.runner\.visualstudio"\s+Version=")([^"]+)(")',
+        lambda m: f"{m.group(1)}{runner_ver}{m.group(3)}"
+        if version_sort_key(m.group(2)) < version_sort_key(runner_ver)
+        else m.group(0),
+        updated,
+        flags=re.IGNORECASE,
+    )
+    if "xunit.v3" in updated and "<OutputType>" not in updated:
+        updated = re.sub(
+            r"(<IsTestProject>\s*true\s*</IsTestProject>)",
+            r"<OutputType>Exe</OutputType>\n    \1",
+            updated,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    if updated != text:
+        if not dry_run:
+            test_csproj.write_text(updated, encoding="utf-8", newline="\n")
+        return f"[UPGRADED] Upgraded {test_csproj.name} to latest stable xunit.v3 ({xunit_v3_ver}) and xunit.runner.visualstudio ({runner_ver})."
+    return None
+
+
+def ensure_global_json_mtp_runner(root: pathlib.Path, dry_run: bool = False) -> str | None:
+    """Ensure global.json configures Microsoft.Testing.Platform so `dotnet test` runs xunit.v3 natively on .NET 10+ SDK."""
+    global_json = root / "global.json"
+    data: dict[str, object] = {}
+    if global_json.is_file():
+        try:
+            loaded = json.loads(global_json.read_text(encoding="utf-8", errors="ignore"))
+            if isinstance(loaded, dict):
+                data = loaded
+        except Exception:
+            return None
+
+    test_section = data.get("test")
+    if isinstance(test_section, dict) and test_section.get("runner") == "Microsoft.Testing.Platform":
+        return None
+
+    data["test"] = {"runner": "Microsoft.Testing.Platform"}
+    if not dry_run:
+        global_json.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return f"[CONFIGURED] Configured Microsoft.Testing.Platform test runner in {global_json.name} for xunit.v3 compatibility."
 
 
 def build_starter_smoke_test_cs(app_namespace: str) -> str:
@@ -270,6 +372,7 @@ def main() -> int:
     )
     parser.add_argument("--project-root", default=".", help="Path to the .NET MAUI project root directory.")
     parser.add_argument("--skip-tests", action="store_true", help="Explicitly skip test project provisioning.")
+    parser.add_argument("--offline", action="store_true", help="Use bundled latest-stable fallback versions without querying NuGet.org.")
     parser.add_argument("--dry-run", action="store_true", help="Inspect without writing changes.")
     args = parser.parse_args()
 
@@ -311,13 +414,21 @@ def main() -> int:
         rel_maui = os.path.relpath(maui_csproj, test_dir).replace("/", "\\")
         if not args.dry_run:
             test_dir.mkdir(parents=True, exist_ok=True)
-            test_csproj.write_text(build_test_csproj_xml(base_tfm, rel_maui), encoding="utf-8", newline="\n")
+            test_csproj.write_text(build_test_csproj_xml(base_tfm, rel_maui, offline=args.offline), encoding="utf-8", newline="\n")
             smoke_file = test_dir / "ArchitectureSmokeTests.cs"
             if not smoke_file.exists():
                 smoke_file.write_text(build_starter_smoke_test_cs(app_name), encoding="utf-8", newline="\n")
-        print(f"[CREATED] Provisioned xUnit test project: {test_csproj} (TargetFramework: {base_tfm}, referencing {maui_csproj.name}).")
+        print(f"[CREATED] Provisioned xunit.v3 test project: {test_csproj} (TargetFramework: {base_tfm}, referencing {maui_csproj.name}).")
     else:
-        print(f"[OK] Existing xUnit test project detected: {test_csproj}")
+        upg_msg = upgrade_existing_test_csproj_to_xunit_v3(test_csproj, offline=args.offline, dry_run=args.dry_run)
+        if upg_msg:
+            print(upg_msg)
+        else:
+            print(f"[OK] Existing xunit.v3 test project detected: {test_csproj}")
+
+    mtp_msg = ensure_global_json_mtp_runner(root, dry_run=args.dry_run)
+    if mtp_msg:
+        print(mtp_msg)
 
     for msg in register_in_solution(root, test_csproj, dry_run=args.dry_run):
         print(msg)

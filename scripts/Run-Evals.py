@@ -528,14 +528,19 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
                 '{"studentCapabilityMode": false, "includeTests": true, "testManagementMode": "student"}',
                 encoding="utf-8",
             )
-            res_etp = subprocess.run([sys.executable, str(ensure_test_py), "--project-root", str(t_app_dir)], capture_output=True, text=True)
+            res_etp = subprocess.run([sys.executable, str(ensure_test_py), "--project-root", str(t_app_dir), "--offline"], capture_output=True, text=True)
             if res_etp.returncode != 0 or "effective writer: agent" not in res_etp.stdout:
                 errors.append(f"Ensure-Test-Project.py failed or did not override testManagementMode to 'agent' when studentCapabilityMode=false: {res_etp.stdout}")
             updated_maui_csproj = (t_app_dir / "LearnStylesMaui/LearnStylesMaui.csproj").read_text(encoding="utf-8")
             if "<TargetFrameworks>net10.0;net10.0-android" not in updated_maui_csproj:
                 errors.append(f"Ensure-Test-Project.py did not add plain net10.0 to <TargetFrameworks>: {updated_maui_csproj}")
-            if not (t_app_dir / "LearnStylesMaui.Tests/LearnStylesMaui.Tests.csproj").is_file():
+            test_csproj_file = t_app_dir / "LearnStylesMaui.Tests/LearnStylesMaui.Tests.csproj"
+            if not test_csproj_file.is_file():
                 errors.append("Ensure-Test-Project.py did not create LearnStylesMaui.Tests.csproj!")
+            else:
+                test_csproj_txt = test_csproj_file.read_text(encoding="utf-8")
+                if 'Include="xunit.v3"' not in test_csproj_txt or "<OutputType>Exe</OutputType>" not in test_csproj_txt:
+                    errors.append(f"Ensure-Test-Project.py did not provision xunit.v3 with OutputType=Exe: {test_csproj_txt}")
             if not (t_app_dir / "Learning/Test-Documentation.md").is_file():
                 errors.append("Ensure-Test-Project.py did not initialize Learning/Test-Documentation.md!")
 

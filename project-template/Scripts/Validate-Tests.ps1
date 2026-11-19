@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot),
     [switch]$SkipDotnetRun
 )
@@ -68,13 +68,25 @@ if ($SkipDotnetRun) {
 $totalPassed = 0
 $totalFailed = 0
 foreach ($tc in $testCsprojs) {
-    $out = & dotnet test $tc.FullName --verbosity normal 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host $out -ForegroundColor Red
-        Write-Host "[FAIL] dotnet test failed for $($tc.Name)" -ForegroundColor Red
+    $tcText = Get-Content -LiteralPath $tc.FullName -Raw
+    if ($tcText -match '<PackageReference\s+[^>]*Include\s*=\s*"xunit"\b') {
+        Write-Host "[FAIL] $($tc.Name) references legacy 'xunit' (v2). Must use 'xunit.v3' (latest stable)." -ForegroundColor Red
         exit 1
     }
-    if ($out -match 'Failed:\s*(\d+),\s*Passed:\s*(\d+)') {
+    $out = & dotnet run --project $tc.FullName 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host $out -ForegroundColor Red
+        Write-Host "[FAIL] xunit.v3 test execution failed for $($tc.Name)" -ForegroundColor Red
+        exit 1
+    }
+    if ($out -match 'Total:\s*(\d+),\s*Errors:\s*(\d+),\s*Failed:\s*(\d+),\s*Skipped:\s*(\d+)') {
+        $tot = [int]$Matches[1]; $err = [int]$Matches[2]; $fail = [int]$Matches[3]; $skip = [int]$Matches[4]
+        $totalFailed += ($err + $fail)
+        $totalPassed += [Math]::Max(0, $tot - $err - $fail - $skip)
+    } elseif ($out -match '(?m)^\s*succeeded:\s*(\d+)') {
+        $totalPassed += [int]$Matches[1]
+        if ($out -match '(?m)^\s*failed:\s*(\d+)') { $totalFailed += [int]$Matches[1] }
+    } elseif ($out -match 'Failed:\s*(\d+),\s*Passed:\s*(\d+)') {
         $totalFailed += [int]$Matches[1]
         $totalPassed += [int]$Matches[2]
     } elseif ($out -match 'Passed:\s*(\d+)') {

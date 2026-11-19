@@ -83,6 +83,15 @@ $testCsproj = Join-Path $testDir "$appName.Tests.csproj"
 if (-not (Test-Path -LiteralPath $testCsproj) -and (-not $DryRun)) {
     New-Item -ItemType Directory -Force -Path $testDir | Out-Null
     $relMaui = [IO.Path]::GetRelativePath($testDir, $mauiCsproj.FullName)
+    $xunitVer = "4.0.3"
+    $runnerVer = "4.0.1"
+    $sdkVer = "18.12.0"
+    $covVer = "10.1.1"
+    try {
+        $r = Invoke-RestMethod -Uri "https://api.nuget.org/v3-flatcontainer/xunit.v3/index.json" -TimeoutSec 3
+        $s = @($r.versions | Where-Object { $_ -notmatch '-' })
+        if ($s.Count -gt 0) { $xunitVer = $s[-1] }
+    } catch {}
     $xml = @"
 <Project Sdk="Microsoft.NET.Sdk">
 
@@ -90,15 +99,16 @@ if (-not (Test-Path -LiteralPath $testCsproj) -and (-not $DryRun)) {
     <TargetFramework>$baseTfm</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.2" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="coverlet.collector" Version="$covVer" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="$sdkVer" />
+    <PackageReference Include="xunit.v3" Version="$xunitVer" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="$runnerVer" />
   </ItemGroup>
 
   <ItemGroup>
@@ -112,6 +122,10 @@ if (-not (Test-Path -LiteralPath $testCsproj) -and (-not $DryRun)) {
 </Project>
 "@
     [IO.File]::WriteAllText($testCsproj, ($xml -replace "`r`n", "`n"), [Text.UTF8Encoding]::new($false))
+    $globalJson = Join-Path $resolvedRoot "global.json"
+    if (-not (Test-Path -LiteralPath $globalJson)) {
+        [IO.File]::WriteAllText($globalJson, "{`n  `"test`": {`n    `"runner`": `"Microsoft.Testing.Platform`"`n  }`n}`n", [Text.UTF8Encoding]::new($false))
+    }
     $smokeFile = Join-Path $testDir "ArchitectureSmokeTests.cs"
     if (-not (Test-Path -LiteralPath $smokeFile)) {
         $smokeCs = @"

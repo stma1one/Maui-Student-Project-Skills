@@ -51,12 +51,17 @@ However, you MUST actively query official documentation (Microsoft Learn for MAU
 4. **Platform Crash / Native Diagnostics**:
    - When encountering native symbol collisions, P/Invoke failures, or platform sandbox exceptions.
 
-## Approved SQLite Stack (Non-Negotiable)
+## Approved SQLite Stack & Latest-Stable NuGet Policy (Non-Negotiable)
+
+- **Always Install the Latest Stable NuGet Version:**
+  - Never hardcode stale NuGet package version numbers from training memory into `.csproj` files (such as old `1.8.x` / `1.9.x` versions of `sqlite-net-pcl` or legacy `2.x` versions of `xunit`).
+  - Always install NuGet packages using `dotnet add package <PackageId>` (without `--prerelease`) so the .NET CLI resolves the **latest Stable version** from NuGet.org, or query `https://api.nuget.org/v3-flatcontainer/<package-id-lowercase>/index.json` and pick the highest non-prerelease version.
+  - `Scripts/Validate-Maui-Version.ps1/.sh` automatically checks every `<PackageReference>` across all `.csproj` files against NuGet.org (with offline minimum-stable baselines: `sqlite-net-pcl >= 1.11.285`, `SQLitePCLRaw.bundle_green >= 2.1.11`, `SQLiteNetExtensions >= 2.1.0`, `SQLiteNetExtensions.Async >= 2.1.0`, `xunit.v3 >= 4.0.3`, `xunit.runner.visualstudio >= 4.0.1`) and fails if any package is outdated, uses an unintended prerelease, or uses legacy `xunit` v2 (run `.\Scripts\Validate-Maui-Version.ps1 -Fix` to auto-upgrade).
 
 For any student project that persists data in SQLite, use only:
 
-1. `sqlite-net-pcl` for basic CRUD operations with `SQLiteAsyncConnection`. Follow Microsoft's MAUI SQLite guide: https://learn.microsoft.com/en-us/dotnet/maui/data-cloud/database-sqlite?view=net-maui-10.0
-2. `SQLiteNetExtensions` (and `SQLiteNetExtensions.Async` when using async relationship helpers such as `GetWithChildrenAsync`, `InsertWithChildrenAsync`, or `UpdateWithChildrenAsync` on `SQLiteAsyncConnection`) in addition to `sqlite-net-pcl` only when the model needs relationships:
+1. `sqlite-net-pcl` (**latest Stable version**, `>= 1.11.285`) for basic CRUD operations with `SQLiteAsyncConnection`. Follow Microsoft's MAUI SQLite guide: https://learn.microsoft.com/en-us/dotnet/maui/data-cloud/database-sqlite?view=net-maui-10.0
+2. `SQLiteNetExtensions` (and `SQLiteNetExtensions.Async`, **latest Stable version**, `>= 2.1.0`, when using async relationship helpers such as `GetWithChildrenAsync`, `InsertWithChildrenAsync`, or `UpdateWithChildrenAsync` on `SQLiteAsyncConnection`) in addition to `sqlite-net-pcl` only when the model needs relationships:
    - One-to-one: https://www.codejourney.net/sqlite-net-extensions-one-to-one-relationships/
    - One-to-many: https://www.codejourney.net/sqlite-net-extensions-one-to-many-relationships/
    - Many-to-many: https://www.codejourney.net/sqlite-net-extensions-many-to-many-relationships/
@@ -105,10 +110,11 @@ Implementation rules:
       - `"combined"` (Default): Agent creates core/scaffold xUnit tests, explains at the end of each stage/slice the tests that were created, offers selected test cases for the student to write, and documents all tests in `Learning/Test-Documentation.md`.
       - `"agent"`: Agent independently writes and runs the xUnit tests and documents them in `Learning/Test-Documentation.md`.
       - `"student"`: Agent guides the student in writing the xUnit tests through Socratic dialogue to verify understanding of required test scenarios.
-- **Automatic Provisioning & MAUI `net10.0` / `net11.0` Multi-Targeting (`Scripts/Ensure-Test-Project.ps1/.sh/.py`):**
-  - Creates `<AppName>.Tests` (`dotnet new xunit -o <AppName>.Tests`), adds it to `.sln`/`.slnx`, and links it to `<AppName>.csproj` (`dotnet add reference`).
-  - Adds the plain base TFM (`net10.0` or `net11.0`, or `net9.0`/`net8.0`) to `<TargetFrameworks>` in the MAUI `.csproj` (alongside `net10.0-android`, `net10.0-windows...`), conditions `<OutputType>Exe</OutputType>` so the plain TFM compiles as a library, and excludes `Platforms/**` on the plain TFM so xUnit compiles and runs tests directly against `ViewModels`, `Services`, `Converters`, and `Models` without an emulator.
-- Use xUnit for ViewModel, Service, and Converter behavior.
+- **Automatic Provisioning (`xunit.v3` Latest Stable) & MAUI `net10.0` / `net11.0` Multi-Targeting (`Scripts/Ensure-Test-Project.ps1/.sh/.py`):**
+  - Always use **`xunit.v3`** (latest Stable version `>= 4.0.3`, with `xunit.runner.visualstudio >= 4.0.1`, `<OutputType>Exe</OutputType>`, and `global.json` `"test": { "runner": "Microsoft.Testing.Platform" }`). **Never** install legacy `xunit` v2 (`2.x`).
+  - Creates `<AppName>.Tests` (`<AppName>.Tests.csproj` with latest stable `xunit.v3`), adds it to `.sln`/`.slnx`, and links it to `<AppName>.csproj`.
+  - Adds the plain base TFM (`net10.0` or `net11.0`, or `net9.0`/`net8.0`) to `<TargetFrameworks>` in the MAUI `.csproj` (alongside `net10.0-android`, `net10.0-windows...`), conditions `<OutputType>Exe</OutputType>` so the plain TFM compiles as a library, and excludes `Platforms/**` on the plain TFM so `xunit.v3` compiles and runs tests directly against `ViewModels`, `Services`, `Converters`, and `Models` without an emulator.
+- Use `xunit.v3` for ViewModel, Service, and Converter behavior.
 - Use Arrange, Act, Assert (AAA) and document all tests in Hebrew (with English identifiers) in `Learning/Test-Documentation.md` so the student can explain them to the Bagrut examiner.
 - Prefer descriptive names such as `SaveCommand_WhenFormInvalid_CannotExecute`.
 - Async tests use `async Task`.
