@@ -47,7 +47,7 @@ case "$TARGET" in
 
     mkdir -p "$PROJECT_LEARNING_DEST/Guides" "$PROJECT_LEARNING_DEST/Mockups" "$PROJECT_LEARNING_DEST/Images" "$PROJECT_LEARNING_DEST/Diagrams" "$PROJECT_SCRIPTS_DEST"
 
-    for source_name in generate_book_pdf.py capture_mockup_blocks.py validate_learning_book.py validate_bagrut_compliance.py generate_architecture_diagrams.py ensure_maui_devflow.py requirements-learning-book.txt; do
+    for source_name in generate_book_pdf.py capture_mockup_blocks.py validate_learning_book.py validate_bagrut_compliance.py generate_architecture_diagrams.py ensure_maui_devflow.py ensure_test_project.py validate_tests.py requirements-learning-book.txt; do
       case "$source_name" in
         generate_book_pdf.py) target_name="Generate-Learning-Book-Pdf.py" ;;
         capture_mockup_blocks.py) target_name="Capture-Mockup-Blocks.py" ;;
@@ -55,6 +55,8 @@ case "$TARGET" in
         validate_bagrut_compliance.py) target_name="Validate-Bagrut-Compliance.py" ;;
         generate_architecture_diagrams.py) target_name="Generate-Architecture-Diagrams.py" ;;
         ensure_maui_devflow.py) target_name="Ensure-Maui-DevFlow.py" ;;
+        ensure_test_project.py) target_name="Ensure-Test-Project.py" ;;
+        validate_tests.py) target_name="Validate-Tests.py" ;;
         requirements-learning-book.txt) target_name="Learning-Book-Requirements.txt" ;;
       esac
       if [ -f "$SKILL_SOURCE/scripts/$source_name" ]; then

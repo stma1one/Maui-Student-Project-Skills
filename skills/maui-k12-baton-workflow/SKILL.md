@@ -22,9 +22,21 @@ Default mode if the file is missing:
 
 ```json
 {
-  "studentCapabilityMode": true
+  "studentCapabilityMode": true,
+  "includeTests": true,
+  "testManagementMode": "combined"
 }
 ```
+
+**Unit Test Configuration & Management Policy (`includeTests` & `testManagementMode` in `.agents/MAUI-Agent-Mode.json`):**
+- **`includeTests` (boolean, default: `true`):** Controls whether the project provisions, writes, and validates xUnit unit tests (`<AppName>.Tests`).
+  - **When `includeTests: false`:** Ignore `testManagementMode` completely. Do not provision `<AppName>.Tests`, do not require unit tests during slice execution, and do not block `Status: COMPLETE` on `*.Tests.csproj` or `dotnet test`.
+- **`testManagementMode` (`"combined"` | `"agent"` | `"student"`, default: `"combined"`):**
+  - **Mandatory Override in `MAXIMIZE CODE GENERATED` (`studentCapabilityMode: false`):** When `includeTests: true` and `studentCapabilityMode: false`, **always ignore `testManagementMode` — the test author is ALWAYS `"agent"`**. The agent must provision `<AppName>.Tests` (via `Scripts/Ensure-Test-Project.ps1/.sh`), independently write xUnit tests (`>= 1` test per new logic component: `ViewModel` / `Service` / `Converter`), run `dotnet test` (`Scripts/Validate-Tests.ps1/.sh`), and document all tested scenarios in **`Learning/Test-Documentation.md`**.
+  - **In `MAXIMIZE STUDENT CAPABILITY` (`studentCapabilityMode: true`) when `includeTests: true`:**
+    1. **`"combined"` (משולב — Default):** The agent creates core/scaffold xUnit tests and explains at the end of each stage/slice the tests that were created and why, while proposing selected test cases for the student to write and documenting all tests in `Learning/Test-Documentation.md`.
+    2. **`"agent"` (סוכן):** The agent independently writes and runs the xUnit tests as part of the slice process and documents them in `Learning/Test-Documentation.md`.
+    3. **`"student"` (תלמיד):** The agent guides the student in writing the xUnit tests and holds a Socratic dialogue to ensure the student understands which test cases (happy path, edge cases, validation, `CanExecute`, error states) are required.
 
 State the active mode as the exact first plain-text line of every work response (never wrap the opening `Mode:` line or closing `Workflow Stage:` / `Status:` lines inside a markdown code block fence):
 
@@ -154,8 +166,8 @@ Rules:
 - Default to Option 1 in Student Capability Mode.
 - Offer routine work as agent-owned only when `Learning/Student-Mastery.md` records both verified `Theory evidence` and student-authored `Applied coding evidence` (`Routine eligibility: Yes`) with a valid `Evidence source`.
 - Never offer "agent implements the whole agreed slice" when the slice contains crucial concepts lacking both evidence tracks. A student reply of `"do it"` or `"continue"` cannot override this.
-- Explain the intended test coverage and ask the student to approve the test plan before writing tests.
-- **Stage 4 Exit Contract:** Once the student selects a valid ownership option (1, 2, or 3) and approves test coverage, advance to `EXECUTION_AGENT`. While waiting for their selection:
+- When `includeTests: true` (default in `.agents/MAUI-Agent-Mode.json`), align the testing plan with `testManagementMode` (`"combined"`: agent writes & explains core tests and offers selected tests to the student; `"agent"`: agent writes and documents the tests; `"student"`: agent coaches the student through Socratic dialogue to design and write the tests). When `includeTests: false`, ignore `testManagementMode` and omit unit-test tasks.
+- **Stage 4 Exit Contract:** Once the student selects a valid ownership option (1, 2, or 3) and approves test coverage (when `includeTests: true`), advance to `EXECUTION_AGENT`. While waiting for their selection:
 
 End with these exact plain-text lines:
 Workflow Stage: OWNERSHIP_NEGOTIATOR
@@ -221,11 +233,16 @@ Rules:
 
 Goal: verify the slice with concrete evidence and review 5-unit Bagrut progress before claiming completion.
 
-Read and execute the 12-point checklist and validation scripts in `references/maui-specialist-guardrails.md` and `references/bagrut-5u-requirements.md` (`dotnet build`, `dotnet test`, `Validate-Maui-*`, `Audit-DI`, `Validate-Bagrut-Compliance`, `Generate-Architecture-Diagrams` when architecture/navigation changed, `Generate-Learning-Book-Pdf.py`, and `Validate-Learning-Book`).
+Read and execute the 12-point checklist and validation scripts in `references/maui-specialist-guardrails.md` and `references/bagrut-5u-requirements.md` (`dotnet build`, `dotnet test` / `Validate-Tests`, `Validate-Maui-*`, `Audit-DI`, `Validate-Bagrut-Compliance`, `Generate-Architecture-Diagrams` when architecture/navigation changed, `Generate-Learning-Book-Pdf.py`, and `Validate-Learning-Book`).
 - **Periodic Bagrut Progress Reminder & Opportunity Suggestion:** In your verification summary, briefly remind the student of their current status in `Learning/Bagrut-Compliance.md` (which rubric items are `IMPLEMENTED` vs. still `PLANNED`) and suggest 1-2 concrete, project-relevant ideas for the next slice to fulfill remaining `PLANNED` items.
 
-- **Strict Evidence Rule & Mandatory Visual + PDF Blocking Gate for `COMPLETE`:**
-  - It is **strictly forbidden** to declare `Status: COMPLETE` until build, tests, guardrail checks, **AND one of the two visual documentation routes below plus PDF book compilation** have actually run and passed with concrete output evidence:
+- **Strict Evidence Rule & Mandatory Unit-Test + Visual + PDF Blocking Gate for `COMPLETE`:**
+  - It is **strictly forbidden** to declare `Status: COMPLETE` until build, unit-test gate (when `includeTests: true`), guardrail checks, **AND one of the two visual documentation routes below plus PDF book compilation** have actually run and passed with concrete output evidence:
+    0. **Mandatory xUnit Test Gate (when `includeTests: true` in `.agents/MAUI-Agent-Mode.json`; skipped when `includeTests: false`):**
+       - Verify that a `*.Tests.csproj` project exists (`<AppName>.Tests`, provisioned via `.\Scripts\Ensure-Test-Project.ps1` / `.sh` with plain `net10.0` or `net11.0` added to the MAUI `.csproj` `<TargetFrameworks>` so xUnit compiles and references the project cleanly).
+       - Verify that every `ViewModel`, `Service`, or `Converter` added or modified in the current slice is covered by xUnit unit tests.
+       - Run `.\Scripts\Validate-Tests.ps1` (or `./Scripts/Validate-Tests.sh` / `dotnet test`) and confirm **`Passed >= 1` and `Failed == 0`** (never pass on 0 tests).
+       - Verify that **`Learning/Test-Documentation.md`** is updated in Hebrew (with English code identifiers) describing all tested components and Arrange-Act-Assert test cases so the student can explain them to the Bagrut examiner.
     1. **Route A — Live `MAUI DevFlow` / Android Emulator Pipeline (when installed and working on the active target):**
        - **Android Priority (Bagrut 883589 `REQ-1` Smartphone Requirement):** Do NOT settle for Windows-only (`net10.0-windows...`) desktop screenshots. Whenever an Android emulator or device is available (`adb devices`), build and run on Android (`dotnet build -t:Run -f net10.0-android`), forward the DevFlow port (`adb reverse tcp:9223 tcp:9223`), and capture an Android screenshot into `Learning/Images/<ScreenName>-android.png` via `maui devflow MAUI screenshot -o Learning/Images/<ScreenName>-android.png` (or `adb exec-out screencap -p > Learning/Images/<ScreenName>-android.png`). If running on Windows as well (`Learning/Images/<ScreenName>-windows.png`), you MUST ALSO provide an Android mobile screenshot (either from the Android emulator/device or via `Capture-Mockup-Blocks.py` which generates `Learning/Images/<ScreenName>-android.png` inside an Android 14 smartphone frame).
        - Embed the screenshot(s) into `Learning/Guides/<ScreenName>-Guide.md` (and `Learning/MAUI-Learning-Book.md`).
@@ -274,6 +291,7 @@ Maintain these project files when present:
 2. **`Learning/Student-Mastery.md`**: Track MAUI concepts (`Models`, `Properties`, `INotifyPropertyChanged`, `ObservableCollection`, `XAML binding`, `Commands`, `CanExecute`, `async/await`, `DI`, `Shell navigation`, `validation`, `testing`) across levels (`Not introduced`, `Practicing`, `Understands`, `Can work independently`) using the canonical structured entries in `references/student-capability-gates.md`.
 3. **`Learning/Bagrut-Compliance.md`**: Track Ministry of Education 5-unit (883589) mandatory and elective requirements (`PLANNED` during development, `IMPLEMENTED` with file paths once coded, verified via `Validate-Bagrut-Compliance`).
 4. **`Learning/AI-And-External-Code-Attribution.md`**: Dedicated log for all AI-generated or externally imported code blocks, student modifications, oral-exam talking points, and APA bibliography entries (keeping `.cs` and `.xaml` source files free of AI-attribution comments).
+5. **`Learning/Test-Documentation.md`**: Dedicated Hebrew documentation (with English code identifiers) of all xUnit tests in `<AppName>.Tests`, their Arrange-Act-Assert scenarios, target logic components (`ViewModel` / `Service` / `Converter`), authorship (`Agent` / `Student` / `Combined`), and oral-exam explanation points (mandatory whenever `includeTests: true`).
 
 ## Graduated Help Ladder
 
@@ -293,7 +311,8 @@ Never shame the student. Identify what is correct before naming the smallest cor
 When `.agents/MAUI-Agent-Mode.json` explicitly sets `"studentCapabilityMode": false`:
 - Start every response with the plain-text line: `Mode: MAXIMIZE CODE GENERATED`.
 - Batch implementation across layers (`Model + ViewModel + View`, `Service + DI`, `navigation + routes`, `tests + fixes`, `styles/resources`) without stopping for `CONCEPT_TUTOR` or `OWNERSHIP_NEGOTIATOR` gates.
-- **Mandatory Visual & PDF Pipeline in Code Generation Mode:** Batching across layers MUST include the visual documentation pipeline: writing the screen code, generating its visual artifact (DevFlow live capture or HTML mockup + `Capture-Mockup-Blocks.py`), embedding the images in the guide (`Learning/Guides/<ScreenName>-Guide.md`), and running `Generate-Learning-Book-Pdf.py` + `Validate-Learning-Book.ps1/.sh`. Never declare `Status: COMPLETE` until both `dotnet build` succeeds AND the PDF learning book (`Learning/MAUI-Learning-Book.pdf` + `Learning/MAUI-Learning-Book.validation.json`) is compiled and validated.
+- **Mandatory Unit Testing Override & Test Documentation (`includeTests: true`):** When `includeTests: true` (default), ignore `testManagementMode` — the test author is **ALWAYS `"agent"`**. Automatically provision `<AppName>.Tests` (`.\Scripts\Ensure-Test-Project.ps1` / `.sh` if not yet present, adding plain `net10.0` or `net11.0` to the MAUI `.csproj` `<TargetFrameworks>`), write xUnit tests covering every new logic component (`>= 1` test per new `Converter` / `ViewModel` / `Service`), and document all executed tests in **`Learning/Test-Documentation.md`**. (If `includeTests: false`, skip test creation and ignore `testManagementMode`).
+- **Mandatory Visual, Test & PDF Pipeline in Code Generation Mode:** Batching across layers MUST include the visual documentation pipeline: writing the screen code, generating its visual artifact (DevFlow live capture or HTML mockup + `Capture-Mockup-Blocks.py`), embedding the images in the guide (`Learning/Guides/<ScreenName>-Guide.md`), and running `Generate-Learning-Book-Pdf.py` + `Validate-Learning-Book.ps1/.sh`. Never declare `Status: COMPLETE` until `dotnet build` succeeds, `dotnet test` (`Validate-Tests.ps1/.sh`) passes with `Failed == 0` and `Passed >= 1` (`>= 1` test per new `Converter` / `ViewModel` / `Service` when `includeTests: true`, plus updated `Learning/Test-Documentation.md`), AND the PDF learning book (`Learning/MAUI-Learning-Book.pdf` + `Learning/MAUI-Learning-Book.validation.json`) is compiled and validated.
 - Still strictly enforce `references/maui-specialist-guardrails.md` (Vanilla C# MVVM without `[ObservableProperty]` / `[RelayCommand]` source generators, approved SQLite stack, no obsolete APIs, no `Page.IsBusy`, no `.Result`/`.Wait()`, constructor DI, Hebrew learning documentation, and verification before claiming `COMPLETE`).
 - Update `Learning/Current-Phase.md` when present so project state stays accurate.
 - **Mandatory Closing Footer in Code Generation Mode (plain-text lines at end of response):**

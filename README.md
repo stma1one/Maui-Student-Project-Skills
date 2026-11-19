@@ -55,12 +55,14 @@ maui-k12-baton-workflow/
 |   |   |-- Bagrut-Compliance.md
 |   |   |-- Current-Phase.md
 |   |   |-- MAUI-Learning-Book.md
-|   |   `-- Student-Mastery.md
+|   |   |-- Student-Mastery.md
+|   |   `-- Test-Documentation.md
 |   `-- Scripts/
 |       |-- Audit-DI.ps1 / .sh
 |       |-- Capture-Mockup-Blocks.py
 |       |-- Check-Learning-Book-Prerequisites.py
 |       |-- Ensure-Maui-DevFlow.ps1 / .sh / .py
+|       |-- Ensure-Test-Project.ps1 / .sh / .py
 |       |-- Generate-Architecture-Diagrams.ps1 / .sh / .py
 |       |-- Generate-Learning-Book-Pdf.ps1 / .sh / .py
 |       |-- Validate-Bagrut-Compliance.ps1 / .sh / .py
@@ -71,7 +73,8 @@ maui-k12-baton-workflow/
 |       |-- Setup-Skills.ps1 / .sh
 |       |-- Validate-Maui-ObsoleteApis.ps1 / .sh
 |       |-- Validate-Maui-Version.ps1 / .sh
-|       `-- Validate-Maui-XamlResources.ps1 / .sh
+|       |-- Validate-Maui-XamlResources.ps1 / .sh
+|       `-- Validate-Tests.ps1 / .sh / .py
 `-- scripts/
     |-- Install-Skill.ps1
     |-- Install-Skill.sh

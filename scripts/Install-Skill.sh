@@ -128,7 +128,7 @@ case "$TARGET" in
     done
 
     # Sync canonical Python tools from companion skill when missing or upgrading
-    for source_name in generate_book_pdf.py capture_mockup_blocks.py validate_learning_book.py validate_bagrut_compliance.py generate_architecture_diagrams.py ensure_maui_devflow.py requirements-learning-book.txt; do
+    for source_name in generate_book_pdf.py capture_mockup_blocks.py validate_learning_book.py validate_bagrut_compliance.py generate_architecture_diagrams.py ensure_maui_devflow.py ensure_test_project.py validate_tests.py requirements-learning-book.txt; do
       case "$source_name" in
         generate_book_pdf.py) target_name="Generate-Learning-Book-Pdf.py" ;;
         capture_mockup_blocks.py) target_name="Capture-Mockup-Blocks.py" ;;
@@ -136,6 +136,8 @@ case "$TARGET" in
         validate_bagrut_compliance.py) target_name="Validate-Bagrut-Compliance.py" ;;
         generate_architecture_diagrams.py) target_name="Generate-Architecture-Diagrams.py" ;;
         ensure_maui_devflow.py) target_name="Ensure-Maui-DevFlow.py" ;;
+        ensure_test_project.py) target_name="Ensure-Test-Project.py" ;;
+        validate_tests.py) target_name="Validate-Tests.py" ;;
         requirements-learning-book.txt) target_name="Learning-Book-Requirements.txt" ;;
       esac
       src_tool="$COMPANION_SOURCE/scripts/$source_name"
@@ -156,6 +158,11 @@ case "$TARGET" in
     copy_file_if_missing "$TEMPLATE_ROOT/Learning/MAUI-Learning-Book.md" "$PROJECT_LEARNING_DEST/MAUI-Learning-Book.md"
     copy_file_if_missing "$TEMPLATE_ROOT/Learning/Bagrut-Compliance.md" "$PROJECT_LEARNING_DEST/Bagrut-Compliance.md"
     copy_file_if_missing "$TEMPLATE_ROOT/Learning/AI-And-External-Code-Attribution.md" "$PROJECT_LEARNING_DEST/AI-And-External-Code-Attribution.md"
+    copy_file_if_missing "$TEMPLATE_ROOT/Learning/Test-Documentation.md" "$PROJECT_LEARNING_DEST/Test-Documentation.md"
+
+    if [ -f "$PROJECT_SCRIPTS_DEST/Ensure-Test-Project.sh" ]; then
+      bash "$PROJECT_SCRIPTS_DEST/Ensure-Test-Project.sh" "$RESOLVED_PROJECT"
+    fi
 
     if [ "$INSTALL_LEARNING_BOOK_DEPENDENCIES" = true ]; then
       bash "$PROJECT_SCRIPTS_DEST/Setup-Learning-Book.sh" "$RESOLVED_PROJECT" --install-missing

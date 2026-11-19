@@ -8,7 +8,16 @@ Current default:
 
 ```text
 studentCapabilityMode: true
+includeTests: true
+testManagementMode: "combined"
 ```
+
+- `includeTests` (`true` by default): Controls whether `<AppName>.Tests` (xUnit) is provisioned and validated. If `includeTests: false`, ignore `testManagementMode` completely and skip unit tests.
+- `testManagementMode` (`"combined"` | `"agent"` | `"student"`, default `"combined"`):
+  - `"combined"` (Default): Agent creates and explains tests at the end of each stage/slice, proposes selected test cases for the student to write, and documents all tests in `Learning/Test-Documentation.md`.
+  - `"agent"`: Agent independently writes and runs the xUnit tests as part of the slice process and documents them in `Learning/Test-Documentation.md`.
+  - `"student"`: Agent guides the student in writing the xUnit tests through Socratic dialogue to verify understanding of required test scenarios.
+  - **`MAXIMIZE CODE GENERATED` Override (`studentCapabilityMode: false`):** When `includeTests: true` and `studentCapabilityMode: false`, ignore `testManagementMode` — the test writer is **ALWAYS `"agent"`**, and the agent MUST write `>= 1` test per new logic component (`Converter` / `ViewModel` / `Service`) and update `Learning/Test-Documentation.md`.
 
 State the current mode as the exact first plain-text line of every work response (never wrapped in a markdown code fence):
 
@@ -54,7 +63,7 @@ When `.agents/MAUI-Agent-Mode.json` sets `studentCapabilityMode=false`, batch im
 - `Workflow Stage: VERIFICATION_AUDITOR` and `Status: COMPLETE` (or `Status: READY_TO_VERIFY` / `Status: BLOCKED`) when the batched slice is complete, or
 - `Workflow Stage: EXECUTION_AGENT` and `Status: EXECUTING_AGENT_PORTION` when multi-step implementation is still in progress.
 
-Batching across layers MUST include the visual documentation pipeline: writing the screen code, generating its visual artifact (DevFlow live capture or HTML mockup + `Capture-Mockup-Blocks.py`), embedding the images in the guide, and running `Generate-Learning-Book-Pdf.py` (verified via `Validate-Learning-Book.ps1/.sh`). Never declare `Status: COMPLETE` until both `dotnet build` succeeds AND the PDF learning book is compiled.
+Batching across layers MUST include the visual documentation pipeline: writing the screen code, generating its visual artifact (DevFlow live capture or HTML mockup + `Capture-Mockup-Blocks.py`), embedding the images in the guide, and running `Generate-Learning-Book-Pdf.py` (verified via `Validate-Learning-Book.ps1/.sh`). Never declare `Status: COMPLETE` until `dotnet build` succeeds, `dotnet test` (`Validate-Tests.ps1/.sh`) passes with `Failed == 0` and `Passed >= 1` (`>= 1` test per new logic component: `Converter` / `ViewModel` / `Service` when `includeTests: true`, with all tests documented in `Learning/Test-Documentation.md`), AND the PDF learning book is compiled.
 
 ## Non-Negotiable Rules
 
@@ -108,7 +117,8 @@ Docs/                project documentation
 
 ```powershell
 dotnet build
-dotnet test
+.\Scripts\Ensure-Test-Project.ps1
+.\Scripts\Validate-Tests.ps1
 .\Scripts\Validate-Maui-Version.ps1
 .\Scripts\Validate-Maui-ObsoleteApis.ps1
 .\Scripts\Validate-Maui-XamlResources.ps1
@@ -123,7 +133,8 @@ dotnet test
 
 ```bash
 dotnet build
-dotnet test
+./Scripts/Ensure-Test-Project.sh
+./Scripts/Validate-Tests.sh
 ./Scripts/Validate-Maui-Version.sh
 ./Scripts/Validate-Maui-ObsoleteApis.sh
 ./Scripts/Validate-Maui-XamlResources.sh

@@ -8,7 +8,7 @@ Status: classroom-ready
 
 Reusable agent workflow for .NET MAUI high-school student projects. It prevents coding agents from overwhelming students by splitting feature work into planning, confirmation, concept teaching, ownership negotiation, execution, code learning review, and verification stages, with optional live MAUI DevFlow runtime verification (when installed and supported on the active target platform), Ministry of Education 5-unit (883589) compliance tracking, and source-grounded Hebrew learning books and validated PDF compilation.
 
-## Complete Package File Inventory (79 Files)
+## Complete Package File Inventory (88 Files)
 
 ```text
 .gitattributes
@@ -34,11 +34,13 @@ companion-skills/maui-step-guide-author/skills/maui-step-guide-author/references
 companion-skills/maui-step-guide-author/skills/maui-step-guide-author/references/html-mockup-guide.md
 companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/capture_mockup_blocks.py
 companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/ensure_maui_devflow.py
+companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/ensure_test_project.py
 companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/generate_architecture_diagrams.py
 companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/generate_book_pdf.py
 companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/requirements-learning-book.txt
 companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/validate_bagrut_compliance.py
 companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/validate_learning_book.py
+companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/validate_tests.py
 project-template/.agents/MAUI-Agent-Mode.json
 project-template/.agents/templates/phase-status-template.md
 project-template/AGENTS.md
@@ -47,6 +49,7 @@ project-template/Learning/Bagrut-Compliance.md
 project-template/Learning/Current-Phase.md
 project-template/Learning/MAUI-Learning-Book.md
 project-template/Learning/Student-Mastery.md
+project-template/Learning/Test-Documentation.md
 project-template/Scripts/Audit-DI.ps1
 project-template/Scripts/Audit-DI.sh
 project-template/Scripts/Capture-Mockup-Blocks.py
@@ -54,6 +57,9 @@ project-template/Scripts/Check-Learning-Book-Prerequisites.py
 project-template/Scripts/Ensure-Maui-DevFlow.ps1
 project-template/Scripts/Ensure-Maui-DevFlow.py
 project-template/Scripts/Ensure-Maui-DevFlow.sh
+project-template/Scripts/Ensure-Test-Project.ps1
+project-template/Scripts/Ensure-Test-Project.py
+project-template/Scripts/Ensure-Test-Project.sh
 project-template/Scripts/Generate-Architecture-Diagrams.ps1
 project-template/Scripts/Generate-Architecture-Diagrams.py
 project-template/Scripts/Generate-Architecture-Diagrams.sh
@@ -79,6 +85,9 @@ project-template/Scripts/Validate-Maui-Version.ps1
 project-template/Scripts/Validate-Maui-Version.sh
 project-template/Scripts/Validate-Maui-XamlResources.ps1
 project-template/Scripts/Validate-Maui-XamlResources.sh
+project-template/Scripts/Validate-Tests.ps1
+project-template/Scripts/Validate-Tests.py
+project-template/Scripts/Validate-Tests.sh
 scripts/Install-Skill.ps1
 scripts/Install-Skill.sh
 scripts/Run-Evals.py

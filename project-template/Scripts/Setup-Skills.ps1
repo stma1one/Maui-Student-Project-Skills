@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Root = (Split-Path -Parent $PSScriptRoot),
     [switch]$Upgrade,
     [Alias("NoDevFlow")]
@@ -31,9 +31,18 @@ function Write-FileIfMissing([string]$Path, [string]$Content) {
 Write-FileIfMissing (Join-Path $Root ".agents\MAUI-Agent-Mode.json") @'
 {
   "studentCapabilityMode": true,
+  "includeTests": true,
+  "testManagementMode": "combined",
   "description": {
     "true": "MAXIMIZE STUDENT CAPABILITY: staged planning, concept gates, ownership negotiation, student practice, and verification.",
-    "false": "MAXIMIZE CODE GENERATED: implement complete feature slices efficiently while preserving verification and learning documentation when configured."
+    "false": "MAXIMIZE CODE GENERATED: implement complete feature slices efficiently while preserving verification and learning documentation when configured.",
+    "includeTests": "Boolean (default: true). Whether the project provisions, writes, and validates xUnit tests (<AppName>.Tests). When false, testManagementMode is ignored and tests are skipped.",
+    "testManagementMode": {
+      "combined": "(Default) Combined: Agent creates and explains tests at the end of each stage/slice, proposes selected test cases for the student to write, and documents all tests in Learning/Test-Documentation.md.",
+      "agent": "Agent: Agent independently writes and runs xUnit tests as part of the slice workflow and documents them in Learning/Test-Documentation.md.",
+      "student": "Student: Agent guides the student through a Socratic dialogue to identify required test cases and coaches the student in writing the xUnit tests.",
+      "maximizeCodeOverride": "When studentCapabilityMode is false (MAXIMIZE CODE GENERATED) and includeTests is true, the agent ALWAYS writes and runs all tests regardless of testManagementMode and documents them in Learning/Test-Documentation.md."
+    }
   }
 }
 '@
@@ -393,6 +402,8 @@ $toolMap = @{
     "validate_bagrut_compliance.py" = "Validate-Bagrut-Compliance.py"
     "generate_architecture_diagrams.py" = "Generate-Architecture-Diagrams.py"
     "ensure_maui_devflow.py" = "Ensure-Maui-DevFlow.py"
+    "ensure_test_project.py" = "Ensure-Test-Project.py"
+    "validate_tests.py" = "Validate-Tests.py"
     "requirements-learning-book.txt" = "Learning-Book-Requirements.txt"
 }
 
@@ -401,6 +412,11 @@ foreach ($entry in $toolMap.GetEnumerator()) {
     if (Test-Path $source) {
         Copy-Item -LiteralPath $source -Destination (Join-Path $targetScriptsDir $entry.Value) -Force
     }
+}
+
+$ensureTests = Join-Path $targetScriptsDir "Ensure-Test-Project.ps1"
+if (Test-Path $ensureTests) {
+    & $ensureTests -ProjectRoot $Root
 }
 
 $learningBookSetup = Join-Path $targetScriptsDir "Setup-Learning-Book.ps1"

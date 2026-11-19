@@ -193,6 +193,14 @@ def validate_shared_files(repo_root: Path) -> list[str]:
             "project-template/Scripts/Ensure-Maui-DevFlow.py",
         ),
         (
+            "companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/ensure_test_project.py",
+            "project-template/Scripts/Ensure-Test-Project.py",
+        ),
+        (
+            "companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/validate_tests.py",
+            "project-template/Scripts/Validate-Tests.py",
+        ),
+        (
             "companion-skills/maui-step-guide-author/skills/maui-step-guide-author/scripts/requirements-learning-book.txt",
             "project-template/Scripts/Learning-Book-Requirements.txt",
         ),
@@ -504,6 +512,46 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
             )
             if res_vlb.returncode == 0 or "DashboardPage" not in (res_vlb.stdout + res_vlb.stderr):
                 errors.append(f"Validate-Learning-Book.py did not fail on missing screen image for DashboardPage: {res_vlb.stdout} {res_vlb.stderr}")
+
+            # 5. Verify Ensure-Test-Project.py & Validate-Tests.py (TFM injection, testManagementMode override, includeTests=false)
+            ensure_test_py = repo_root / "project-template/Scripts/Ensure-Test-Project.py"
+            val_test_py = repo_root / "project-template/Scripts/Validate-Tests.py"
+            t_app_dir = tmp_path / "test_prov_app"
+            (t_app_dir / ".agents").mkdir(parents=True)
+            (t_app_dir / "LearnStylesMaui").mkdir(parents=True)
+            (t_app_dir / "LearnStylesMaui/LearnStylesMaui.csproj").write_text(
+                '<Project Sdk="Microsoft.NET.Sdk">\n  <PropertyGroup>\n    <TargetFrameworks>net10.0-android;net10.0-windows10.0.19041.0</TargetFrameworks>\n    <OutputType>Exe</OutputType>\n    <UseMaui>true</UseMaui>\n  </PropertyGroup>\n</Project>\n',
+                encoding="utf-8",
+            )
+            # In MAXIMIZE CODE GENERATED (studentCapabilityMode=false), even if testManagementMode="student", effective writer must be "agent"
+            (t_app_dir / ".agents/MAUI-Agent-Mode.json").write_text(
+                '{"studentCapabilityMode": false, "includeTests": true, "testManagementMode": "student"}',
+                encoding="utf-8",
+            )
+            res_etp = subprocess.run([sys.executable, str(ensure_test_py), "--project-root", str(t_app_dir)], capture_output=True, text=True)
+            if res_etp.returncode != 0 or "effective writer: agent" not in res_etp.stdout:
+                errors.append(f"Ensure-Test-Project.py failed or did not override testManagementMode to 'agent' when studentCapabilityMode=false: {res_etp.stdout}")
+            updated_maui_csproj = (t_app_dir / "LearnStylesMaui/LearnStylesMaui.csproj").read_text(encoding="utf-8")
+            if "<TargetFrameworks>net10.0;net10.0-android" not in updated_maui_csproj:
+                errors.append(f"Ensure-Test-Project.py did not add plain net10.0 to <TargetFrameworks>: {updated_maui_csproj}")
+            if not (t_app_dir / "LearnStylesMaui.Tests/LearnStylesMaui.Tests.csproj").is_file():
+                errors.append("Ensure-Test-Project.py did not create LearnStylesMaui.Tests.csproj!")
+            if not (t_app_dir / "Learning/Test-Documentation.md").is_file():
+                errors.append("Ensure-Test-Project.py did not initialize Learning/Test-Documentation.md!")
+
+            res_vt_pass = subprocess.run([sys.executable, str(val_test_py), "--project-root", str(t_app_dir), "--skip-dotnet-run"], capture_output=True, text=True)
+            if res_vt_pass.returncode != 0 or "effective writer: agent" not in res_vt_pass.stdout:
+                errors.append(f"Validate-Tests.py failed on valid provisioned test project: {res_vt_pass.stdout} {res_vt_pass.stderr}")
+
+            # When includeTests=false, Validate-Tests.py must ignore testManagementMode and pass even if *.Tests.csproj is deleted
+            shutil.rmtree(t_app_dir / "LearnStylesMaui.Tests")
+            (t_app_dir / ".agents/MAUI-Agent-Mode.json").write_text(
+                '{"studentCapabilityMode": true, "includeTests": false, "testManagementMode": "student"}',
+                encoding="utf-8",
+            )
+            res_vt_disabled = subprocess.run([sys.executable, str(val_test_py), "--project-root", str(t_app_dir)], capture_output=True, text=True)
+            if res_vt_disabled.returncode != 0 or "TESTS DISABLED" not in res_vt_disabled.stdout:
+                errors.append(f"Validate-Tests.py did not skip when includeTests=false: {res_vt_disabled.stdout}")
 
             pwsh_exe = shutil.which("powershell.exe") or shutil.which("pwsh")
             if pwsh_exe:

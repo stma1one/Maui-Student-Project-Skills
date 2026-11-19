@@ -97,8 +97,19 @@ Implementation rules:
 
 ## Tests
 
-- Use xUnit for ViewModel and Service behavior.
-- Use Arrange, Act, Assert.
+- **Configuration in `.agents/MAUI-Agent-Mode.json` (`includeTests` & `testManagementMode`):**
+  - `includeTests` (boolean, default `true`): When `false`, skip xUnit test provisioning/validation and ignore `testManagementMode`.
+  - `testManagementMode` (`"combined"` | `"agent"` | `"student"`, default `"combined"`):
+    - In `MAXIMIZE CODE GENERATED` (`studentCapabilityMode: false`), when `includeTests: true`, ignore `testManagementMode` — the **agent ALWAYS writes and runs all xUnit tests** (`>= 1` test per new `ViewModel` / `Service` / `Converter`) and documents every test in **`Learning/Test-Documentation.md`**.
+    - In `MAXIMIZE STUDENT CAPABILITY` (`studentCapabilityMode: true`) when `includeTests: true`:
+      - `"combined"` (Default): Agent creates core/scaffold xUnit tests, explains at the end of each stage/slice the tests that were created, offers selected test cases for the student to write, and documents all tests in `Learning/Test-Documentation.md`.
+      - `"agent"`: Agent independently writes and runs the xUnit tests and documents them in `Learning/Test-Documentation.md`.
+      - `"student"`: Agent guides the student in writing the xUnit tests through Socratic dialogue to verify understanding of required test scenarios.
+- **Automatic Provisioning & MAUI `net10.0` / `net11.0` Multi-Targeting (`Scripts/Ensure-Test-Project.ps1/.sh/.py`):**
+  - Creates `<AppName>.Tests` (`dotnet new xunit -o <AppName>.Tests`), adds it to `.sln`/`.slnx`, and links it to `<AppName>.csproj` (`dotnet add reference`).
+  - Adds the plain base TFM (`net10.0` or `net11.0`, or `net9.0`/`net8.0`) to `<TargetFrameworks>` in the MAUI `.csproj` (alongside `net10.0-android`, `net10.0-windows...`), conditions `<OutputType>Exe</OutputType>` so the plain TFM compiles as a library, and excludes `Platforms/**` on the plain TFM so xUnit compiles and runs tests directly against `ViewModels`, `Services`, `Converters`, and `Models` without an emulator.
+- Use xUnit for ViewModel, Service, and Converter behavior.
+- Use Arrange, Act, Assert (AAA) and document all tests in Hebrew (with English identifiers) in `Learning/Test-Documentation.md` so the student can explain them to the Bagrut examiner.
 - Prefer descriptive names such as `SaveCommand_WhenFormInvalid_CannotExecute`.
 - Async tests use `async Task`.
 - Test behavior, not XAML visual trees.
@@ -111,7 +122,7 @@ Implementation rules:
 Before declaring `Status: COMPLETE` in `VERIFICATION_AUDITOR`, verify with evidence:
 
 ```text
-1. Target framework/version (net8.0 / net9.0 / net10.0 / net11.0)
+1. Target framework/version (net8.0 / net9.0 / net10.0 / net11.0, including plain net10.0/net11.0 TFM when includeTests=true)
 2. Current MAUI compatibility (no obsolete APIs)
 3. Build (dotnet build)
 4. Architecture boundaries (no Services instantiated in ViewModels)
@@ -121,7 +132,7 @@ Before declaring `Status: COMPLETE` in `VERIFICATION_AUDITOR`, verify with evide
 8. Styles/resources scope resolution
 9. State/commands & CanExecute
 10. Async/error handling (no .Result / .Wait() / constructor I/O)
-11. Tests (dotnet test)
+11. Unit Tests (when includeTests=true: *.Tests.csproj exists, every new ViewModel/Service/Converter is tested, Validate-Tests passes with Passed >= 1 and Failed == 0, and Learning/Test-Documentation.md is updated)
 12. Learning documentation, screen visual artifacts (`Learning/Images/`), and compiled PDF learning book (`Learning/MAUI-Learning-Book.pdf` + `Learning/MAUI-Learning-Book.validation.json`)
 ```
 
@@ -130,7 +141,8 @@ Run available checks:
 **Windows (PowerShell):**
 ```powershell
 dotnet build
-dotnet test
+.\Scripts\Ensure-Test-Project.ps1
+.\Scripts\Validate-Tests.ps1
 .\Scripts\Validate-Maui-Version.ps1
 .\Scripts\Validate-Maui-ObsoleteApis.ps1
 .\Scripts\Validate-Maui-XamlResources.ps1
@@ -144,7 +156,8 @@ python .\Scripts\Generate-Learning-Book-Pdf.py
 **macOS / Linux (Bash):**
 ```bash
 dotnet build
-dotnet test
+./Scripts/Ensure-Test-Project.sh
+./Scripts/Validate-Tests.sh
 ./Scripts/Validate-Maui-Version.sh
 ./Scripts/Validate-Maui-ObsoleteApis.sh
 ./Scripts/Validate-Maui-XamlResources.sh

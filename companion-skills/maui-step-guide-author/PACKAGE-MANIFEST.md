@@ -25,11 +25,13 @@ skills/maui-step-guide-author/references/guide-template.md
 skills/maui-step-guide-author/references/html-mockup-guide.md
 skills/maui-step-guide-author/scripts/capture_mockup_blocks.py
 skills/maui-step-guide-author/scripts/ensure_maui_devflow.py
+skills/maui-step-guide-author/scripts/ensure_test_project.py
 skills/maui-step-guide-author/scripts/generate_architecture_diagrams.py
 skills/maui-step-guide-author/scripts/generate_book_pdf.py
 skills/maui-step-guide-author/scripts/requirements-learning-book.txt
 skills/maui-step-guide-author/scripts/validate_bagrut_compliance.py
 skills/maui-step-guide-author/scripts/validate_learning_book.py
+skills/maui-step-guide-author/scripts/validate_tests.py
 ```
 
 ## Skill Metadata

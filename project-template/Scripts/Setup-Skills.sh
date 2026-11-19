@@ -47,9 +47,18 @@ write_if_missing() {
 
 write_if_missing "$ROOT/.agents/MAUI-Agent-Mode.json" '{
   "studentCapabilityMode": true,
+  "includeTests": true,
+  "testManagementMode": "combined",
   "description": {
     "true": "MAXIMIZE STUDENT CAPABILITY: staged planning, concept gates, ownership negotiation, student practice, and verification.",
-    "false": "MAXIMIZE CODE GENERATED: implement complete feature slices efficiently while preserving verification and learning documentation when configured."
+    "false": "MAXIMIZE CODE GENERATED: implement complete feature slices efficiently while preserving verification and learning documentation when configured.",
+    "includeTests": "Boolean (default: true). Whether the project provisions, writes, and validates xUnit tests (<AppName>.Tests). When false, testManagementMode is ignored and tests are skipped.",
+    "testManagementMode": {
+      "combined": "(Default) Combined: Agent creates and explains tests at the end of each stage/slice, proposes selected test cases for the student to write, and documents all tests in Learning/Test-Documentation.md.",
+      "agent": "Agent: Agent independently writes and runs xUnit tests as part of the slice workflow and documents them in Learning/Test-Documentation.md.",
+      "student": "Student: Agent guides the student through a Socratic dialogue to identify required test cases and coaches the student in writing the xUnit tests.",
+      "maximizeCodeOverride": "When studentCapabilityMode is false (MAXIMIZE CODE GENERATED) and includeTests is true, the agent ALWAYS writes and runs all tests regardless of testManagementMode and documents them in Learning/Test-Documentation.md."
+    }
   }
 }'
 
@@ -394,7 +403,7 @@ SOURCE_DIR="$ROOT/.agents/skills/maui-step-guide-author/scripts"
 TARGET_DIR="$ROOT/Scripts"
 mkdir -p "$TARGET_DIR"
 
-for source_name in generate_book_pdf.py capture_mockup_blocks.py validate_learning_book.py validate_bagrut_compliance.py generate_architecture_diagrams.py ensure_maui_devflow.py requirements-learning-book.txt; do
+for source_name in generate_book_pdf.py capture_mockup_blocks.py validate_learning_book.py validate_bagrut_compliance.py generate_architecture_diagrams.py ensure_maui_devflow.py ensure_test_project.py validate_tests.py requirements-learning-book.txt; do
     case "$source_name" in
         generate_book_pdf.py) target_name="Generate-Learning-Book-Pdf.py" ;;
         capture_mockup_blocks.py) target_name="Capture-Mockup-Blocks.py" ;;
@@ -402,6 +411,8 @@ for source_name in generate_book_pdf.py capture_mockup_blocks.py validate_learni
         validate_bagrut_compliance.py) target_name="Validate-Bagrut-Compliance.py" ;;
         generate_architecture_diagrams.py) target_name="Generate-Architecture-Diagrams.py" ;;
         ensure_maui_devflow.py) target_name="Ensure-Maui-DevFlow.py" ;;
+        ensure_test_project.py) target_name="Ensure-Test-Project.py" ;;
+        validate_tests.py) target_name="Validate-Tests.py" ;;
         requirements-learning-book.txt) target_name="Learning-Book-Requirements.txt" ;;
     esac
     source_path="$SOURCE_DIR/$source_name"
@@ -409,6 +420,10 @@ for source_name in generate_book_pdf.py capture_mockup_blocks.py validate_learni
         cp "$source_path" "$TARGET_DIR/$target_name"
     fi
 done
+
+if [ -f "$TARGET_DIR/Ensure-Test-Project.sh" ]; then
+    bash "$TARGET_DIR/Ensure-Test-Project.sh" "$ROOT"
+fi
 
 LEARNING_BOOK_SETUP="$TARGET_DIR/Setup-Learning-Book.sh"
 if [ -f "$LEARNING_BOOK_SETUP" ]; then

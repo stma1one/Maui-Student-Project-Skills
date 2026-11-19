@@ -102,6 +102,8 @@ function Sync-ProjectScripts($TemplateScriptsDir, $CompanionScriptsDir, $Destina
         "validate_bagrut_compliance.py" = "Validate-Bagrut-Compliance.py"
         "generate_architecture_diagrams.py" = "Generate-Architecture-Diagrams.py"
         "ensure_maui_devflow.py" = "Ensure-Maui-DevFlow.py"
+        "ensure_test_project.py" = "Ensure-Test-Project.py"
+        "validate_tests.py" = "Validate-Tests.py"
         "requirements-learning-book.txt" = "Learning-Book-Requirements.txt"
     }
     foreach ($entry in $toolMap.GetEnumerator()) {
@@ -151,6 +153,12 @@ if ($Target -eq "Project") {
     Copy-FileIfMissing (Join-Path $templateRoot "Learning\MAUI-Learning-Book.md") (Join-Path $projectLearningDest "MAUI-Learning-Book.md")
     Copy-FileIfMissing (Join-Path $templateRoot "Learning\Bagrut-Compliance.md") (Join-Path $projectLearningDest "Bagrut-Compliance.md")
     Copy-FileIfMissing (Join-Path $templateRoot "Learning\AI-And-External-Code-Attribution.md") (Join-Path $projectLearningDest "AI-And-External-Code-Attribution.md")
+    Copy-FileIfMissing (Join-Path $templateRoot "Learning\Test-Documentation.md") (Join-Path $projectLearningDest "Test-Documentation.md")
+
+    $ensureTests = Join-Path $projectScriptsDest "Ensure-Test-Project.ps1"
+    if (Test-Path $ensureTests) {
+        & $ensureTests -ProjectRoot $resolvedProject
+    }
 
     $learningBookSetup = Join-Path $projectScriptsDest "Setup-Learning-Book.ps1"
     if (Test-Path $learningBookSetup) {

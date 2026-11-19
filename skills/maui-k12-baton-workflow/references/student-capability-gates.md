@@ -122,8 +122,7 @@ Default split in Student Capability Mode:
 - student owns crucial code
 - agent scaffolds structure and guides
 - agent may handle routine wiring after offering it as practice only when the relevant concept is routine-eligible
-- agent explains and usually handles test execution
-- student approves test intent and coverage before tests are written or treated as done
+- when `includeTests: true` in `.agents/MAUI-Agent-Mode.json` (default: `true`), unit-test ownership follows `testManagementMode` (default: `"combined"` — agent creates and explains core tests at the end of each stage/slice, offers selected test cases for the student to write, and documents all tests in `Learning/Test-Documentation.md`; `"agent"` — agent writes and documents the tests independently; `"student"` — agent guides the student via Socratic dialogue to identify required test cases and write the tests). When `includeTests: false`, `testManagementMode` is ignored and unit tests are skipped. (In `MAXIMIZE CODE GENERATED` mode, when `includeTests: true`, the test writer is always `"agent"` regardless of `testManagementMode`).
 
 Full agent implementation is allowed only when:
 - the slice has no unmastered crucial concepts, and

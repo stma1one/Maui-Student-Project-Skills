@@ -53,6 +53,8 @@ if ($Target -eq "Project") {
         "validate_bagrut_compliance.py" = "Validate-Bagrut-Compliance.py"
         "generate_architecture_diagrams.py" = "Generate-Architecture-Diagrams.py"
         "ensure_maui_devflow.py" = "Ensure-Maui-DevFlow.py"
+        "ensure_test_project.py" = "Ensure-Test-Project.py"
+        "validate_tests.py" = "Validate-Tests.py"
         "requirements-learning-book.txt" = "Learning-Book-Requirements.txt"
     }
     foreach ($entry in $toolMap.GetEnumerator()) {
