@@ -51,6 +51,18 @@ $rules = @(
         Name = 'MVVM source generators / base classes ([ObservableProperty], [RelayCommand], ObservableObject)'
         Replacement = 'Use explicit Vanilla C# INotifyPropertyChanged properties and ICommand/Command in K12 projects'
         Source = 'MAUI Specialist Guardrails - Vanilla C# MVVM Policy'
+    },
+    @{
+        Pattern = '\bnew\s+Client\s*\([^)]*vertexai\s*:\s*true'
+        Name = 'Google.GenAI Client with vertexai: true on mobile MAUI'
+        Replacement = 'Use new Client(apiKey: apiKey) with Gemini Developer API on .NET MAUI Android/iOS (Vertex AI ADC is not supported on mobile devices)'
+        Source = 'https://googleapis.github.io/dotnet-genai/'
+    },
+    @{
+        Pattern = 'AIzaSy[A-Za-z0-9_-]{33}'
+        Name = 'Hardcoded Google Gemini API Key in source file'
+        Replacement = 'Load the API key from SecureStorage, user settings, or an uncommitted local configuration file'
+        Source = 'https://googleapis.github.io/dotnet-genai/'
     }
 )
 
@@ -239,6 +251,29 @@ if (-not $refMastered) {
                 Write-Host "Notice: 'ref' and 'SetProperty' concept is not yet recorded as mastered in Learning/Student-Mastery.md."
                 Write-Host "Suggestion: Keep as-is or replace with explicit 3-line setter."
             }
+        }
+    }
+}
+
+# Check AndroidManifest.xml for INTERNET permission when Google.GenAI is referenced
+$usesGoogleGenAi = $false
+foreach ($csproj in $csprojFiles) {
+    $xmlText = Get-Content -LiteralPath $csproj.FullName -Raw
+    if ($xmlText -match 'Google\.GenAI') {
+        $usesGoogleGenAi = $true
+        break
+    }
+}
+if ($usesGoogleGenAi) {
+    $manifests = Get-ChildItem -Path $ProjectRoot -Recurse -Filter "AndroidManifest.xml" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch "[\\/](bin|obj|\.git|\.vs)[\\/]" }
+    foreach ($mf in $manifests) {
+        $mfText = Get-Content -LiteralPath $mf.FullName -Raw
+        if ($mfText -notmatch 'android\.permission\.INTERNET') {
+            $found = $true
+            Write-Host "[REVIEW] Missing android.permission.INTERNET -> $($mf.FullName)" -ForegroundColor Yellow
+            Write-Host "  Replacement: Add <uses-permission android:name=`"android.permission.INTERNET`" /> to AndroidManifest.xml for Google.GenAI"
+            Write-Host "  Reference:   https://googleapis.github.io/dotnet-genai/"
         }
     }
 }

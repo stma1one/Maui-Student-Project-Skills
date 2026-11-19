@@ -67,6 +67,16 @@ check_rule '(\[ObservableProperty\]|\[RelayCommand\]|\[NotifyCanExecuteChangedFo
     'Use explicit Vanilla C# INotifyPropertyChanged properties and ICommand/Command in K12 projects' \
     'MAUI Specialist Guardrails - Vanilla C# MVVM Policy'
 
+check_rule '\bnew[[:space:]]+Client[[:space:]]*\([^)]*vertexai[[:space:]]*:[[:space:]]*true' \
+    'Google.GenAI Client with vertexai: true on mobile MAUI' \
+    'Use new Client(apiKey: apiKey) with Gemini Developer API on .NET MAUI Android/iOS (Vertex AI ADC is not supported on mobile devices)' \
+    'https://googleapis.github.io/dotnet-genai/'
+
+check_rule 'AIzaSy[A-Za-z0-9_-]{33}' \
+    'Hardcoded Google Gemini API Key in source file' \
+    'Load the API key from SecureStorage, user settings, or an uncommitted local configuration file' \
+    'https://googleapis.github.io/dotnet-genai/'
+
 # Check Microsoft.Maui.DevFlow Debug-only isolation in .csproj and MauiProgram.cs
 # Uses Python when available, and a built-in POSIX awk validator when Python is absent (never skips silently!)
 PYTHON_BIN=""

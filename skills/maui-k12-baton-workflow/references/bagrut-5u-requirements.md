@@ -22,6 +22,10 @@ Every project **must** satisfy all four threshold requirements or it is disquali
 The student must implement **at least ONE** (`>= 1`) of the following 4 AI paths (implementing one path satisfies the mandatory Section 5 threshold, and there is no restriction against implementing more than one AI path to enrich the project).
 *Rule:* Implementing Section 5 AI also counts as **1 of the required topics in Section 6**.
 *Google AI / Gemini Single Source of Truth:* When implementing Section 5 AI against Google Gemini in .NET MAUI, use the official **`Google.GenAI`** .NET SDK (**latest Stable version**, `>= 2.2.0`) and follow its official documentation at **https://googleapis.github.io/dotnet-genai/** (`Google.GenAI.Client`, `client.Models.GenerateContentAsync(...)`, and `GenerateContentConfig`).
+  - **Mobile Android Checklist for `Google.GenAI`:**
+    1. Initialize `new Client(apiKey: apiKey)` with a Gemini Developer API key (never `vertexai: true`, which requires server ADC unavailable on Android, and never hardcode a real `AIzaSy...` key in committed source files).
+    2. Confirm `<uses-permission android:name="android.permission.INTERNET" />` is present in `Platforms/Android/AndroidManifest.xml`.
+    3. Make the AI Service unit-testable in `xunit.v3` by extracting an interface (`IGeminiAiService`) for ViewModel fake testing and a pure `ParseStructuredResponse(string json)` method for testing JSON schema deserialization offline.
 
 | Path ID | Official Path Name | .NET MAUI Implementation Guidance |
 | :--- | :--- | :--- |

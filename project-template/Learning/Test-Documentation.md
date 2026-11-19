@@ -29,3 +29,10 @@
 1. **Arrange (הכנה):** יצירת המופעים הנדרשים לבדיקה (למשל `FakeDatabaseService` או `ViewModel` עם נתוני דמה) ללא תלות במסך XAML אמיתי או במסד נתונים חיצוני.
 2. **Act (פעולה):** הפעלת המתודה או ה-`Command` שאותם רוצים לבדוק (למשל `vm.SaveCommand.Execute(null)` או `await vm.InitializeAsync()`).
 3. **Assert (אימות):** בדיקה שהתוצאה בפועל תואמת לתוצאה המצופה (`Assert.True`, `Assert.Equal`, בדיקת `CanExecute`, בדיקת `IsLoading` או הודעת שגיאה).
+
+### הנחיה לבדיקת שירותי AI (`Google.GenAI` — https://googleapis.github.io/dotnet-genai/):
+- בבדיקות יחידה (`xunit.v3`) **אין לבצע קריאות רשת חיות** לשרתי Google Gemini.
+- מומלץ לבדוק שני היבטים:
+  1. **בדיקת ה-`ViewModel` מול `FakeAiService` (המממש את ממשק ה-Service):** אימות ש-`IsLoading`, `CanExecute`, עדכון ה-`ObservableCollection` וטיפול בשגיאות פועלים כשורה.
+  2. **בדיקת פענוח הפלט המובנה (`ParseStructuredResponse`):** הפרדת פענוח ה-JSON (`JsonSerializer.Deserialize<T>`) למתודה עצמאית במחלקת ה-AI Service ובדיקתה מול מחרוזת JSON תקינה, מחרוזת ריקה ו-JSON שגוי.
+

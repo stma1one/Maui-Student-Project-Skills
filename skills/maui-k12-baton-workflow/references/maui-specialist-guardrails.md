@@ -58,13 +58,23 @@ When a student project integrates Google AI / Gemini (for example, to fulfill Mi
 
 - **Authoritative Documentation (Single Source of Truth):** **https://googleapis.github.io/dotnet-genai/**
 - **Approved NuGet Package:** **`Google.GenAI`** (**latest Stable version**, `>= 2.2.0`, installed via `dotnet add package Google.GenAI`). Do not use deprecated/unofficial legacy wrappers or raw unstructured REST calls when `Google.GenAI` is applicable.
-- **Architecture & Implementation Rules:**
-  - Encapsulate all `Google.GenAI` calls inside a dedicated Service class under `Services/` (e.g., `Services/GeminiAiService.cs`), injected into ViewModels via constructor DI. Never call `Google.GenAI.Client` directly from a View or ViewModel.
-  - Follow the official `Google.GenAI` SDK conventions from https://googleapis.github.io/dotnet-genai/:
-    - Initialize `var client = new Client(apiKey: ...);` (loading the API key securely from configuration / `SecureStorage` / user settings, never hardcoded in committed source files).
+- **Architecture, Mobile Android Rules & Implementation Guidelines:**
+  - **Dedicated Service Layer (`Services/`):** Encapsulate all `Google.GenAI` calls inside a dedicated Service class implementing an interface (e.g., `IGeminiAiService` / `GeminiAiService`), injected into ViewModels via constructor DI. Never call `Google.GenAI.Client` directly from a View or ViewModel.
+  - **Mobile Authentication (`apiKey` Only — Never `vertexai: true` on Android/iOS):**
+    - On mobile devices (.NET MAUI Android/iOS), always initialize `var client = new Client(apiKey: apiKey);` using a Gemini Developer API key loaded from `SecureStorage`, user settings, or a git-ignored local config.
+    - **Never** pass `vertexai: true` in a mobile MAUI client (Vertex AI relies on server Application Default Credentials / local gcloud files that do not exist on Android and fail at runtime).
+    - **Never** commit a hardcoded real Google API key (`AIzaSy...`) into source control.
+  - **Android `INTERNET` Permission (`Platforms/Android/AndroidManifest.xml`):**
+    - Verify that `Platforms/Android/AndroidManifest.xml` includes `<uses-permission android:name="android.permission.INTERNET" />`.
+  - **Official SDK Call Patterns (https://googleapis.github.io/dotnet-genai/):**
     - Call `await client.Models.GenerateContentAsync(model: "gemini-2.5-flash", contents: ..., config: ...);`.
     - For **`AI-1` (Structured Output / JSON Schema)**: configure `GenerateContentConfig` with `ResponseMimeType = "application/json"` and `ResponseSchema` (or `ResponseJsonSchema`), then deserialize (`JsonSerializer.Deserialize<T>()`) into strongly-typed C# domain models integrated into app logic/SQLite.
     - For **`AI-3` (Runtime AI Agent / Function Calling)**: configure `GenerateContentConfig` with `Tools` declarations and invoke internal C# service methods based on the returned function calls.
+- **Unit Testing `Google.GenAI` in `xunit.v3` (Student & Agent Testing Plan):**
+  - Never make live network calls to Google Gemini inside `xunit.v3` unit tests (`<AppName>.Tests`).
+  - Instead, teach and implement two complementary unit-test patterns:
+    1. **ViewModel Tests with a Fake AI Service (`FakeGeminiAiService : IGeminiAiService`):** Test how the `ViewModel` handles `IsLoading`, `CanExecute`, valid structured AI results, and exception/error recovery when the AI service succeeds or throws.
+    2. **Service JSON-Schema Parsing Tests (`ParseStructuredResponse(string rawJson)`):** Separate the JSON deserialization/validation logic into a public or internal testable method on the AI Service so `xunit.v3` tests verify valid JSON deserialization, missing required fields, and malformed JSON handling without needing an active internet connection or API key.
 
 ## Approved SQLite Stack & Latest-Stable NuGet Policy (Non-Negotiable)
 
