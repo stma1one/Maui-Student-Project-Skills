@@ -46,6 +46,7 @@ import json, pathlib, re, sys, urllib.request
 root = pathlib.Path(sys.argv[1]).resolve()
 excluded = {".git", ".vs", "bin", "obj", ".agents", "project-template", "companion-skills", "skills"}
 baselines = {
+    "google.genai": "2.2.0",
     "xunit.v3": "4.0.3",
     "xunit.runner.visualstudio": "4.0.1",
     "microsoft.net.test.sdk": "18.12.0",

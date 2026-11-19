@@ -45,18 +45,33 @@ However, you MUST actively query official documentation (Microsoft Learn for MAU
 2. **Platform & Device-Specific Features**:
    - When using `WebView`, `MediaPicker`, `Geolocation`, `Permissions`, or native hardware controls.
    - Purpose: Ensure correct MAUI-specific XAML controls and lifecycle methods are used (not Web or standard desktop idioms).
-3. **Cloud & Third-Party SDK Integration**:
+3. **Cloud, AI & Third-Party SDK Integration**:
+   - **Google AI / Gemini API (Single Source of Truth):** When integrating Google Gemini / Generative AI in .NET MAUI, use **https://googleapis.github.io/dotnet-genai/** (the official `Google.GenAI` .NET SDK) as the authoritative source of truth.
    - When integrating Firebase, Firestore, Authentication providers, or Azure services in a MAUI client.
-   - Purpose: Verify current recommended mobile/.NET SDK architecture, initialization hooks, and credentials handling.
+   - Purpose: Verify current recommended mobile/.NET SDK architecture, initialization hooks, structured output (`GenerateContentConfig`), and credentials handling.
 4. **Platform Crash / Native Diagnostics**:
    - When encountering native symbol collisions, P/Invoke failures, or platform sandbox exceptions.
+
+## Approved Google AI / Gemini .NET SDK (`Google.GenAI` — Single Source of Truth)
+
+When a student project integrates Google AI / Gemini (for example, to fulfill Ministry of Education 5-unit Bagrut Section 5 paths `AI-1`, `AI-2`, or `AI-3`):
+
+- **Authoritative Documentation (Single Source of Truth):** **https://googleapis.github.io/dotnet-genai/**
+- **Approved NuGet Package:** **`Google.GenAI`** (**latest Stable version**, `>= 2.2.0`, installed via `dotnet add package Google.GenAI`). Do not use deprecated/unofficial legacy wrappers or raw unstructured REST calls when `Google.GenAI` is applicable.
+- **Architecture & Implementation Rules:**
+  - Encapsulate all `Google.GenAI` calls inside a dedicated Service class under `Services/` (e.g., `Services/GeminiAiService.cs`), injected into ViewModels via constructor DI. Never call `Google.GenAI.Client` directly from a View or ViewModel.
+  - Follow the official `Google.GenAI` SDK conventions from https://googleapis.github.io/dotnet-genai/:
+    - Initialize `var client = new Client(apiKey: ...);` (loading the API key securely from configuration / `SecureStorage` / user settings, never hardcoded in committed source files).
+    - Call `await client.Models.GenerateContentAsync(model: "gemini-2.5-flash", contents: ..., config: ...);`.
+    - For **`AI-1` (Structured Output / JSON Schema)**: configure `GenerateContentConfig` with `ResponseMimeType = "application/json"` and `ResponseSchema` (or `ResponseJsonSchema`), then deserialize (`JsonSerializer.Deserialize<T>()`) into strongly-typed C# domain models integrated into app logic/SQLite.
+    - For **`AI-3` (Runtime AI Agent / Function Calling)**: configure `GenerateContentConfig` with `Tools` declarations and invoke internal C# service methods based on the returned function calls.
 
 ## Approved SQLite Stack & Latest-Stable NuGet Policy (Non-Negotiable)
 
 - **Always Install the Latest Stable NuGet Version:**
   - Never hardcode stale NuGet package version numbers from training memory into `.csproj` files (such as old `1.8.x` / `1.9.x` versions of `sqlite-net-pcl` or legacy `2.x` versions of `xunit`).
   - Always install NuGet packages using `dotnet add package <PackageId>` (without `--prerelease`) so the .NET CLI resolves the **latest Stable version** from NuGet.org, or query `https://api.nuget.org/v3-flatcontainer/<package-id-lowercase>/index.json` and pick the highest non-prerelease version.
-  - `Scripts/Validate-Maui-Version.ps1/.sh` automatically checks every `<PackageReference>` across all `.csproj` files against NuGet.org (with offline minimum-stable baselines: `sqlite-net-pcl >= 1.11.285`, `SQLitePCLRaw.bundle_green >= 2.1.11`, `SQLiteNetExtensions >= 2.1.0`, `SQLiteNetExtensions.Async >= 2.1.0`, `xunit.v3 >= 4.0.3`, `xunit.runner.visualstudio >= 4.0.1`) and fails if any package is outdated, uses an unintended prerelease, or uses legacy `xunit` v2 (run `.\Scripts\Validate-Maui-Version.ps1 -Fix` to auto-upgrade).
+  - `Scripts/Validate-Maui-Version.ps1/.sh` automatically checks every `<PackageReference>` across all `.csproj` files against NuGet.org (with offline minimum-stable baselines: `Google.GenAI >= 2.2.0`, `sqlite-net-pcl >= 1.11.285`, `SQLitePCLRaw.bundle_green >= 2.1.11`, `SQLiteNetExtensions >= 2.1.0`, `SQLiteNetExtensions.Async >= 2.1.0`, `xunit.v3 >= 4.0.3`, `xunit.runner.visualstudio >= 4.0.1`) and fails if any package is outdated, uses an unintended prerelease, or uses legacy `xunit` v2 (run `.\Scripts\Validate-Maui-Version.ps1 -Fix` to auto-upgrade).
 
 For any student project that persists data in SQLite, use only:
 

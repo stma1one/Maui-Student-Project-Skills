@@ -376,7 +376,8 @@ write_if_missing "$ROOT/Learning/AI-And-External-Code-Attribution.md" '# יומ�
 1. Microsoft. (2026). *.NET Multi-platform App UI (.NET MAUI) documentation*. Microsoft Learn. https://learn.microsoft.com/en-us/dotnet/maui/
 2. Krueger, F. (2025). *sqlite-net-pcl: Simple, powerful, cross-platform SQLite client and ORM for .NET*. GitHub. https://github.com/praeclarum/sqlite-net
 3. Microsoft. (2026). *.NET MAUI DevFlow developer tools*. Microsoft Learn. https://learn.microsoft.com/en-us/dotnet/maui/developer-tools/devflow/?view=net-maui-10.0
-4. Versluis, G. [.NET]. (2026, November 13). *Beyond Code Generation: Give AI Eyes and Hands for .NET MAUI* [Video]. YouTube. http://www.youtube.com/watch?v=-3ClD7BHbLU'
+4. Versluis, G. [.NET]. (2026, November 13). *Beyond Code Generation: Give AI Eyes and Hands for .NET MAUI* [Video]. YouTube. http://www.youtube.com/watch?v=-3ClD7BHbLU
+5. Google. (2026). *Google GenAI .NET SDK (`Google.GenAI`) documentation*. Google APIs. https://googleapis.github.io/dotnet-genai/'
 
 sync_skill_clean() {
     local src="$1"
