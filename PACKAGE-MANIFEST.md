@@ -1,7 +1,7 @@
 # Package Manifest
 
 Package: MAUI K12 Baton Workflow Skill
-Version: 1.4.1
+Version: 1.5.0
 Status: classroom-ready
 
 ## Purpose
@@ -112,7 +112,7 @@ maui-k12-baton-workflow
 Companion Skill:
 
 ```text
-maui-step-guide-author (v1.4.1)
+maui-step-guide-author (v1.5.0)
 ```
 
 ## Required Target Project Files (Installed by `Install-Skill`)
@@ -143,6 +143,13 @@ Learning/Diagrams/
 Scripts/*
 ```
 *(Note: `evals/` directories and `Set-Maui-Agent-Mode.*` instructor scripts are intentionally excluded from student project installations).*
+
+## 1.5.0 Release Notes (xUnit v3 Test Suite & Modes, Google.GenAI SDK, Android & Diagram PNGs, Mandatory PDF Gate & SetProperty Soft-Gate)
+
+- **Configurable `xunit.v3` Test Provisioning, Management Modes & Blocking Gate (`includeTests` & `testManagementMode`):** Added `"includeTests": true` and `"testManagementMode": "combined"` (`"combined"` | `"agent"` | `"student"`) to `.agents/MAUI-Agent-Mode.json` and `Set-Maui-Agent-Mode.ps1/.sh`. When `includeTests=false`, `testManagementMode` is ignored and tests are skipped. When `studentCapabilityMode=false` (`MAXIMIZE CODE GENERATED`) and `includeTests=true`, the effective test writer is **always `"agent"`** regardless of `testManagementMode`, and all tests are documented in `Learning/Test-Documentation.md`. `Ensure-Test-Project.ps1/.sh/.py` automatically provisions `<AppName>.Tests` using the latest stable **`xunit.v3`** (`>= 4.0.3`, with `<OutputType>Exe</OutputType>` and `global.json` `"test": { "runner": "Microsoft.Testing.Platform" }`), links it to `.sln`/`.slnx` and `<AppName>.csproj`, and adds the plain `net10.0` / `net11.0` target framework (with conditioned `<OutputType>` and `Platforms/**` exclusion) to the MAUI `.csproj`. `Validate-Tests.ps1/.sh/.py` blocks `Status: COMPLETE` when `includeTests=true` unless `*.Tests.csproj` (with `xunit.v3`) exists, `Learning/Test-Documentation.md` is populated, and tests pass with `Failed == 0` and `Passed >= 1`.
+- **Latest-Stable NuGet Enforcement & Official `Google.GenAI` SDK Reference (`https://googleapis.github.io/dotnet-genai/`):** Added **https://googleapis.github.io/dotnet-genai/** (`Google.GenAI` official .NET SDK, latest stable `>= 2.2.0`) as the Single Source of Truth for Google AI / Gemini integration in .NET MAUI (including mobile `new Client(apiKey: ...)` rules, `Validate-Maui-ObsoleteApis` checks against `vertexai: true`, leaked `AIzaSy...` keys, and missing Android `INTERNET` permission, plus offline `xunit.v3` unit-testing patterns using `IGeminiAiService` fakes and `ParseStructuredResponse`). `Validate-Maui-Version.ps1/.sh` now verifies every `<PackageReference>` across all `.csproj` files against NuGet.org (with `-Fix` auto-upgrade support) so packages like `sqlite-net-pcl` (`>= 1.11.285`), `SQLiteNetExtensions.Async` (`>= 2.1.0`), `Google.GenAI` (`>= 2.2.0`), and `xunit.v3` (`>= 4.0.3`) always use the latest Stable release.
+- **Two-Layer DevFlow CLI Provisioning (`-SkipCli`) & Mandatory Android Visual + Diagram PNG + PDF Blocking Gate:** `Ensure-Maui-DevFlow.py/.ps1/.sh`, `Install-Skill.ps1/.sh`, and `Setup-Skills.ps1/.sh` now install both the project NuGet (`Microsoft.Maui.DevFlow.Agent`) and the global `.NET MAUI DevFlow CLI` (`dotnet tool install -g Microsoft.Maui.Cli --prerelease`, with `-SkipCli` / `--skip-cli` opt-out). `Capture-Mockup-Blocks.py` generates an Android 14 smartphone-framed screenshot (`Learning/Images/<ScreenName>-android.png`), `Generate-Architecture-Diagrams.py` renders visual PNG diagrams (`Learning/Images/Screen-Flow.png` and `Learning/Images/Architecture-UML.png`) automatically embedded into `Learning/MAUI-Learning-Book.pdf`, and `Validate-Learning-Book.ps1/.sh/.py` enforces Android screen images, diagram PNGs, and an up-to-date PDF before `Status: COMPLETE`.
+- **`SetProperty(ref ...)` ViewModel Soft-Gate & `Student-Mastery.md` Check:** `Validate-Maui-ObsoleteApis.ps1/.sh` scopes `SetProperty(ref ...)` detection strictly to `ViewModels/` and `*ViewModel.cs` (exempting `Views/`, `Controls/`, `Platforms/`), checks `Learning/Student-Mastery.md` for `ref` / `SetProperty` mastery, and emits a non-blocking `[PEDAGOGICAL WARNING]` (exiting `0`) when not yet mastered so the agent offers the student a pedagogical choice in `CODE_LEARNING_REVIEWER`.
 
 ## 1.4.1 Release Notes (TFM Gating, Opt-Out/Conditional DevFlow, Leak Hardening, Version Pinning & Optional Python)
 

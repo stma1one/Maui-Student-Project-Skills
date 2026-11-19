@@ -152,7 +152,7 @@ If a script is missing, continue with the closest manual check and state the lim
 
 For an HTML/PDF learning book, install `Scripts/Learning-Book-Requirements.txt`, run the generic mockup capture tool, and require `Learning/MAUI-Learning-Book.validation.json` to pass before calling the book publication-ready.
 
-## MAUI DevFlow Runtime Verification & Guardrail Precedence (v1.4.1)
+## MAUI DevFlow Runtime Verification & Guardrail Precedence (v1.5.0)
 
 - **Two-Layer TFM-Gated Provisioning & Opt-Out (`Scripts/Ensure-Maui-DevFlow.py` / `.ps1` / `.sh`)**: Installing or updating the skill on a `.NET MAUI` project provisions two layers when the project targets `net10.0` or `net11.0` (skipping `net9.0` and older targets such as `net9.0-android`): (1) Project layer — injects pinned `Microsoft.Maui.DevFlow.Agent` (`0.1.0-preview.14.26531.2`) under `Condition="'$(Configuration)' == 'Debug'"` into `.csproj` and `#if DEBUG` `builder.AddMauiDevFlowAgent();` into `MauiProgram.cs`; and (2) Machine layer — installs or updates the global `.NET MAUI DevFlow CLI` (`dotnet tool install -g Microsoft.Maui.Cli --prerelease`). Opt out of all DevFlow provisioning with `-SkipDevFlow` / `--skip-devflow` (`--no-devflow`), skip global CLI installation with `-SkipCli` / `--skip-cli` when working without global permissions, or remove project injection with `--remove`.
 - **Debug-Only Enforcement**: `Scripts/Validate-Maui-ObsoleteApis.ps1/.sh` fails with `[RELEASE LEAK]` if `Microsoft.Maui.DevFlow` is referenced without a strict positive `Debug` condition (blocking `!= 'Debug'`) or if `AddMauiDevFlowAgent()` / `using Microsoft.Maui.DevFlow` appears outside `#if DEBUG` (blocking `#if !DEBUG`), including when Python is absent in `.sh`.
