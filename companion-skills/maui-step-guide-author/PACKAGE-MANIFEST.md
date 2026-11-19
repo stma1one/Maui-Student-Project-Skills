@@ -7,7 +7,7 @@ Parent Package: MAUI K12 Baton Workflow Skill (v1.4.1)
 
 ## Purpose
 
-Authoring step-by-step .NET MAUI learning books and Ministry of Education 5-unit Project Portfolios (תיק פרויקט — 883589) for new and existing projects. Guides are source-grounded, use small visual and MVVM blocks, auto-generate UML & Screen Flow architecture diagrams and saved prompts from code, use live MAUI DevFlow screenshots (`Learning/Images/`) when installed and working on the active target platform (with HTML visual models as fallback when DevFlow or an emulator is unavailable), and validate the final HTML/PDF book before publication.
+Authoring step-by-step .NET MAUI learning books and Ministry of Education 5-unit Project Portfolios (תיק פרויקט — 883589) for new and existing projects. Guides are source-grounded, use small visual and MVVM blocks, auto-generate UML & Screen Flow architecture diagrams (both `.mmd` sources and visual PNG images `Learning/Images/Screen-Flow.png` & `Learning/Images/Architecture-UML.png`) and saved prompts from code, provision and validate xUnit test projects (`Ensure-Test-Project.py` & `Validate-Tests.py`), capture live Android/MAUI DevFlow screenshots (`Learning/Images/<ScreenName>-android.png`) when available or mandatory Android 14 smartphone-framed HTML visual models via `Capture-Mockup-Blocks.py`, and validate the final HTML/PDF book (`Validate-Learning-Book.py`) as a blocking gate before publication.
 
 ## Included Files
 

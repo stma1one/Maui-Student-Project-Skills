@@ -133,9 +133,50 @@ Upgrade an existing project:
 
 Then open the target project in your agent tool and ask it to read `AGENTS.md`.
 
-The installer never overwrites an existing `AGENTS.md` (it writes `AGENTS.md.new` when the template has changed), `MAUI-Agent-Mode.json`, `Current-Phase.md`, `MAUI-Learning-Book.md`, or `Student-Mastery.md`. It always creates `Learning/Guides`, `Learning/Mockups`, and `Learning/Images`, and cleanly replaces `.agents/skills/*` so removed skill files do not linger. Python 3 is optional for project installation: if Python 3 is missing, the installer attempts a best-effort automatic installation and falls back to native PowerShell/Bash provisioning so setup never fails.
+The installer never overwrites an existing `AGENTS.md` (it writes `AGENTS.md.new` when the template has changed), `MAUI-Agent-Mode.json`, `Current-Phase.md`, `MAUI-Learning-Book.md`, `Student-Mastery.md`, `Bagrut-Compliance.md`, `AI-And-External-Code-Attribution.md`, or `Test-Documentation.md`. It always creates `Learning/Guides`, `Learning/Mockups`, `Learning/Images`, and `Learning/Diagrams`, provisions `<AppName>.Tests` (when `includeTests: true`), and cleanly replaces `.agents/skills/*` so removed skill files do not linger. Python 3 is optional for project installation: if Python 3 is missing, the installer attempts a best-effort automatic installation and falls back to native PowerShell/Bash provisioning so setup never fails.
 
-### Learning-book tools
+### Agent Modes & Unit Test Configuration (`.agents/MAUI-Agent-Mode.json`)
+
+The project's pedagogical and unit-testing behavior is controlled by `.agents/MAUI-Agent-Mode.json` (which only the instructor may modify via `Set-Maui-Agent-Mode.ps1` / `.sh`):
+
+```json
+{
+  "studentCapabilityMode": true,
+  "includeTests": true,
+  "testManagementMode": "combined"
+}
+```
+
+- **`studentCapabilityMode`** (`true` by default):
+  - `true` (`Mode: MAXIMIZE STUDENT CAPABILITY`): Enforces one baton stage per response, concept gates, ownership negotiation, and `// TODO (Student)` core tasks.
+  - `false` (`Mode: MAXIMIZE CODE GENERATED`): Batches implementation across layers, visual artifacts, unit tests, and PDF compilation in one workflow.
+- **`includeTests`** (`true` by default):
+  - When `true`, `Ensure-Test-Project.ps1/.sh` automatically provisions `<AppName>.Tests` (`xUnit`), links it to `.sln`/`.slnx` and `<AppName>.csproj`, and adds the plain `net10.0` / `net11.0` target framework to the MAUI `.csproj` so xUnit tests compile and run without an emulator. `Validate-Tests.ps1/.sh` enforces `Failed == 0`, `Passed >= 1`, and an updated `Learning/Test-Documentation.md` before `Status: COMPLETE`.
+  - When `false`, `testManagementMode` is ignored and unit-test provisioning/validation is skipped.
+- **`testManagementMode`** (`"combined"` | `"agent"` | `"student"`, default `"combined"`):
+  - `"combined"` (Default): Agent creates core/scaffold tests, explains them at the end of each stage/slice, offers selected test cases to the student, and documents all tests in `Learning/Test-Documentation.md`.
+  - `"agent"`: Agent writes and runs the xUnit tests independently and documents them in `Learning/Test-Documentation.md`.
+  - `"student"`: Agent guides the student via Socratic dialogue to design and write the xUnit tests.
+  - **`MAXIMIZE CODE GENERATED` Override:** When `studentCapabilityMode` is `false` and `includeTests` is `true`, the effective test writer is **always `"agent"`** regardless of `testManagementMode`, and all tests are documented in `Learning/Test-Documentation.md`.
+
+Instructor mode-switching examples:
+
+```powershell
+# Student mode with combined test management (default):
+.\scripts\Set-Maui-Agent-Mode.ps1 -Mode student -ProjectRoot C:\path\to\YourMauiProject -IncludeTests $true -TestManagementMode combined
+# Code generation mode (agent automatically writes & documents all tests):
+.\scripts\Set-Maui-Agent-Mode.ps1 -Mode code -ProjectRoot C:\path\to\YourMauiProject -IncludeTests $true
+# Disable unit tests for a project:
+.\scripts\Set-Maui-Agent-Mode.ps1 -Mode student -ProjectRoot C:\path\to\YourMauiProject -IncludeTests $false
+```
+
+```bash
+./scripts/Set-Maui-Agent-Mode.sh true /path/to/YourMauiProject true combined
+./scripts/Set-Maui-Agent-Mode.sh false /path/to/YourMauiProject true agent
+./scripts/Set-Maui-Agent-Mode.sh true /path/to/YourMauiProject false combined
+```
+
+### Learning-book tools, Android screenshots & visual Architecture/UML PNGs
 
 The checker never downloads learning-book browser binaries by default. When prerequisites are already available, it does nothing. When they are missing, it names the missing items and explains that installation can download browser binaries, use disk space, and change the selected Python environment.
 
@@ -159,7 +200,17 @@ Install only after the user explicitly agrees:
 # Or: ./scripts/Install-Skill.sh Project /path/to/YourMauiProject --install-learning-book-dependencies
 ```
 
-Then generate the book with `python .\Scripts\Generate-Learning-Book-Pdf.py`. The generator writes `Learning/MAUI-Learning-Book.validation.json`. A failed report means the book is not ready to publish.
+Then generate the architecture diagrams (`Learning/Images/Screen-Flow.png` and `Learning/Images/Architecture-UML.png`), capture screen snapshots (including Android smartphone-framed `Learning/Images/<ScreenName>-android.png`), and compile the PDF book:
+
+```powershell
+.\Scripts\Generate-Architecture-Diagrams.ps1
+python .\Scripts\Capture-Mockup-Blocks.py --mockup .\Learning\Mockups\<ScreenName>.html --screen <ScreenName>
+python .\Scripts\Generate-Learning-Book-Pdf.py
+.\Scripts\Validate-Learning-Book.ps1
+.\Scripts\Validate-Tests.ps1
+```
+
+The generator writes `Learning/MAUI-Learning-Book.pdf` and `Learning/MAUI-Learning-Book.validation.json`. `Status: COMPLETE` is blocked until `dotnet build`, `Validate-Tests` (when `includeTests: true`), and `Validate-Learning-Book` all pass.
 
 ## Manual Install: Antigravity Project
 
