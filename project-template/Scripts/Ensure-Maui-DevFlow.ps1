@@ -1,5 +1,6 @@
 param(
-    [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+    [Parameter(Position = 0)]
+    [string]$ProjectRoot = "",
     [string]$Version = "",
     [switch]$Upgrade,
     [switch]$Offline,
@@ -9,11 +10,78 @@ param(
     [switch]$SkipCli,
     [Alias("Disable")]
     [switch]$Remove,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$RemainingArgs
 )
 
 $ErrorActionPreference = "Stop"
 $DefaultDevFlowVersion = "0.1.0-preview.14.26531.2"
+$DefaultRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+# Support both PowerShell switches (-Upgrade) and POSIX flags (--upgrade, --remove, --skip-devflow, --project-root, etc.)
+$extraTokens = New-Object System.Collections.Generic.List[string]
+if ($ProjectRoot -and $ProjectRoot.StartsWith("-")) {
+    $extraTokens.Add($ProjectRoot)
+    $ProjectRoot = ""
+}
+if ($RemainingArgs) {
+    foreach ($arg in $RemainingArgs) {
+        if ($null -ne $arg -and $arg -ne "") {
+            $extraTokens.Add([string]$arg)
+        }
+    }
+}
+
+for ($i = 0; $i -lt $extraTokens.Count; $i++) {
+    $tok = $extraTokens[$i].Trim()
+    switch -Regex ($tok) {
+        '^(--project-root|-ProjectRoot)$' {
+            if (($i + 1) -lt $extraTokens.Count) {
+                $i++
+                $ProjectRoot = $extraTokens[$i]
+            }
+            continue
+        }
+        '^--project-root=(.+)$' {
+            $ProjectRoot = $Matches[1]
+            continue
+        }
+        '^(--version|-Version)$' {
+            if (($i + 1) -lt $extraTokens.Count) {
+                $i++
+                $Version = $extraTokens[$i]
+            }
+            continue
+        }
+        '^--version=(.+)$' {
+            $Version = $Matches[1]
+            continue
+        }
+        '^(--upgrade|-Upgrade)$' { $Upgrade = $true; continue }
+        '^(--offline|-Offline)$' { $Offline = $true; continue }
+        '^(--skip|--skip-devflow|--no-devflow|-Skip|-SkipDevFlow|-NoDevFlow)$' { $Skip = $true; continue }
+        '^(--skip-cli|--no-cli|--skip-devflow-cli|-SkipCli|-NoCli)$' { $SkipCli = $true; continue }
+        '^(--remove|--disable|-Remove|-Disable)$' { $Remove = $true; continue }
+        '^(--dry-run|-DryRun)$' { $DryRun = $true; continue }
+        default {
+            if (-not $tok.StartsWith("-") -and -not $ProjectRoot) {
+                $ProjectRoot = $tok
+            }
+        }
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    $ProjectRoot = $DefaultRoot
+}
+if (Test-Path -LiteralPath $ProjectRoot) {
+    $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+}
+# Strip trailing backslash so Windows PowerShell 5.1 never escapes the closing quote when invoking python.exe
+if ($ProjectRoot.Length -gt 3) {
+    $ProjectRoot = $ProjectRoot.TrimEnd('\', '/')
+}
 
 if ($Skip -or ($env:MAUI_SKIP_DEVFLOW -match '^(1|true|yes)$')) {
     Write-Host "[SKIP] MAUI DevFlow automatic injection skipped by user option (-SkipDevFlow / MAUI_SKIP_DEVFLOW)."
@@ -96,13 +164,13 @@ function Try-InstallPython3 {
 }
 
 $scriptPath = Join-Path $PSScriptRoot "Ensure-Maui-DevFlow.py"
-$pythonSpec = Find-WorkingPython3
-if (-not $pythonSpec) {
-    $pythonSpec = Try-InstallPython3
+$pythonSpec = @(Find-WorkingPython3 | Where-Object { $null -ne $_ -and $_ -ne "" })
+if ($pythonSpec.Count -eq 0) {
+    $pythonSpec = @(Try-InstallPython3 | Where-Object { $null -ne $_ -and $_ -ne "" })
 }
 
-if ($pythonSpec -and (Test-Path $scriptPath)) {
-    $pyExe = $pythonSpec[0]
+if ($pythonSpec.Count -gt 0 -and (Test-Path $scriptPath)) {
+    $pyExe = [string]$pythonSpec[0]
     $argsList = @()
     if ($pythonSpec.Count -gt 1) {
         $argsList += $pythonSpec[1..($pythonSpec.Count - 1)]
@@ -112,8 +180,12 @@ if ($pythonSpec -and (Test-Path $scriptPath)) {
     if ($Upgrade) { $argsList += "--upgrade" }
     if ($Offline) { $argsList += "--offline" }
     if ($Skip) { $argsList += "--skip" }
-    # Ensure-DevFlowCli already ran in PowerShell above, so pass --skip-cli to avoid duplicate CLI invocation
-    $argsList += "--skip-cli"
+    # Ensure-DevFlowCli already ran in PowerShell above; set env var and pass --skip-cli only if supported by the script file
+    $env:MAUI_SKIP_DEVFLOW_CLI = "1"
+    $pyScriptContent = Get-Content -LiteralPath $scriptPath -Raw -ErrorAction SilentlyContinue
+    if ($pyScriptContent -match '--skip-cli') {
+        $argsList += "--skip-cli"
+    }
     if ($Remove) { $argsList += "--remove" }
     if ($DryRun) { $argsList += "--dry-run" }
 

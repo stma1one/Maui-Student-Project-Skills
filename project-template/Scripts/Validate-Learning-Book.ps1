@@ -1,4 +1,5 @@
 param(
+    [Parameter(Position = 0)]
     [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot),
     [string]$HtmlPath = "",
     [string]$PdfPath = "",
@@ -6,6 +7,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if (Test-Path -LiteralPath $ProjectRoot) { $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path }
+if ($ProjectRoot.Length -gt 3) { $ProjectRoot = $ProjectRoot.TrimEnd('\', '/') }
 $scriptPath = Join-Path $PSScriptRoot "Validate-Learning-Book.py"
 if (-not (Test-Path $scriptPath)) {
     $scriptPath = Join-Path $ProjectRoot ".agents\skills\maui-step-guide-author\scripts\validate_learning_book.py"

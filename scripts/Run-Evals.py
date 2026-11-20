@@ -560,6 +560,23 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
 
             pwsh_exe = shutil.which("powershell.exe") or shutil.which("pwsh")
             if pwsh_exe:
+                ensure_ps1 = repo_root / "project-template/Scripts/Ensure-Maui-DevFlow.ps1"
+                res_devflow_ps = subprocess.run(
+                    [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ensure_ps1), "-ProjectRoot", str(net10_dir), "-SkipCli", "-Offline"],
+                    capture_output=True,
+                    text=True,
+                )
+                if res_devflow_ps.returncode != 0:
+                    errors.append(f"Ensure-Maui-DevFlow.ps1 failed with PowerShell flags: {res_devflow_ps.stdout} {res_devflow_ps.stderr}")
+
+                res_devflow_posix_ps = subprocess.run(
+                    [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ensure_ps1), "--project-root", str(net10_dir), "--skip-cli", "--offline", "--dry-run"],
+                    capture_output=True,
+                    text=True,
+                )
+                if res_devflow_posix_ps.returncode != 0:
+                    errors.append(f"Ensure-Maui-DevFlow.ps1 failed with POSIX flags (--project-root / --skip-cli): {res_devflow_posix_ps.stdout} {res_devflow_posix_ps.stderr}")
+
                 res_valid_ps = subprocess.run(
                     [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(obsolete_ps1), "-ProjectRoot", str(net10_dir)],
                     capture_output=True,

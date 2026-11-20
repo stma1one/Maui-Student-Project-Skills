@@ -1,10 +1,45 @@
 param(
-    [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+    [Parameter(Position = 0)]
+    [string]$ProjectRoot = "",
     [switch]$SkipTests,
-    [switch]$DryRun
+    [switch]$Offline,
+    [switch]$DryRun,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$RemainingArgs
 )
 
 $ErrorActionPreference = "Stop"
+$DefaultRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+$extraTokens = New-Object System.Collections.Generic.List[string]
+if ($ProjectRoot -and $ProjectRoot.StartsWith("-")) {
+    $extraTokens.Add($ProjectRoot)
+    $ProjectRoot = ""
+}
+if ($RemainingArgs) {
+    foreach ($arg in $RemainingArgs) {
+        if ($null -ne $arg -and $arg -ne "") { $extraTokens.Add([string]$arg) }
+    }
+}
+for ($i = 0; $i -lt $extraTokens.Count; $i++) {
+    $tok = $extraTokens[$i].Trim()
+    switch -Regex ($tok) {
+        '^(--project-root|-ProjectRoot)$' {
+            if (($i + 1) -lt $extraTokens.Count) { $i++; $ProjectRoot = $extraTokens[$i] }
+            continue
+        }
+        '^--project-root=(.+)$' { $ProjectRoot = $Matches[1]; continue }
+        '^(--skip-tests|-SkipTests)$' { $SkipTests = $true; continue }
+        '^(--offline|-Offline)$' { $Offline = $true; continue }
+        '^(--dry-run|-DryRun)$' { $DryRun = $true; continue }
+        default {
+            if (-not $tok.StartsWith("-") -and -not $ProjectRoot) { $ProjectRoot = $tok }
+        }
+    }
+}
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) { $ProjectRoot = $DefaultRoot }
+if (Test-Path -LiteralPath $ProjectRoot) { $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path }
+if ($ProjectRoot.Length -gt 3) { $ProjectRoot = $ProjectRoot.TrimEnd('\', '/') }
 
 $modeFile = Join-Path $ProjectRoot ".agents\MAUI-Agent-Mode.json"
 if (Test-Path -LiteralPath $modeFile) {
@@ -30,6 +65,7 @@ foreach ($candidate in @("python3", "python", "py")) {
         if ($candidate -eq "py") { $pyArgs += "-3" }
         $pyArgs += @($scriptPath, "--project-root", $ProjectRoot)
         if ($SkipTests) { $pyArgs += "--skip-tests" }
+        if ($Offline) { $pyArgs += "--offline" }
         if ($DryRun) { $pyArgs += "--dry-run" }
         & $cmd.Source @pyArgs
         if ($LASTEXITCODE -eq 0) { exit 0 }

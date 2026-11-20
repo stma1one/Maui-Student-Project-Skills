@@ -1,9 +1,18 @@
 ﻿param(
+    [Parameter(Position = 0)]
     [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot),
-    [switch]$SkipDotnetRun
+    [switch]$SkipDotnetRun,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$RemainingArgs
 )
 
 $ErrorActionPreference = "Stop"
+if ($ProjectRoot -and $ProjectRoot.StartsWith("-")) {
+    if ($ProjectRoot -match '^(--skip-dotnet-run|-SkipDotnetRun)$') { $SkipDotnetRun = $true }
+    $ProjectRoot = (Split-Path -Parent $PSScriptRoot)
+}
+if (Test-Path -LiteralPath $ProjectRoot) { $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path }
+if ($ProjectRoot.Length -gt 3) { $ProjectRoot = $ProjectRoot.TrimEnd('\', '/') }
 
 $modeFile = Join-Path $ProjectRoot ".agents\MAUI-Agent-Mode.json"
 $studentMode = $true

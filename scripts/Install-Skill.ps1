@@ -110,9 +110,7 @@ function Sync-ProjectScripts($TemplateScriptsDir, $CompanionScriptsDir, $Destina
         $srcTool = Join-Path $CompanionScriptsDir $entry.Key
         $dstTool = Join-Path $DestinationDir $entry.Value
         if (Test-Path $srcTool) {
-            if ($IsUpgrade -or -not (Test-Path $dstTool)) {
-                Copy-Item -LiteralPath $srcTool -Destination $dstTool -Force
-            }
+            Copy-Item -LiteralPath $srcTool -Destination $dstTool -Force
         }
     }
 }
