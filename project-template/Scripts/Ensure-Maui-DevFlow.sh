@@ -252,7 +252,7 @@ for csproj in "${MAUI_CSPROJS[@]}"; do
     awk -v ver="$TARGET_VER" '
       /<\/Project>/ {
         print ""
-        print "  <ItemGroup Condition=\"\x27$(Configuration)\x27 == \x27Debug\x27\">"
+        print "  <ItemGroup Condition=\"\x27$(Configuration)\x27 == \x27Debug\x27 and \x27$(TargetFramework)\x27 != \x27net10.0\x27 and \x27$(TargetFramework)\x27 != \x27net11.0\x27\">"
         print "    <PackageReference Include=\"Microsoft.Maui.DevFlow.Agent\" Version=\"" ver "\" />"
         print "  </ItemGroup>"
       }
@@ -298,7 +298,7 @@ if [[ "$ANY_ACTIVE" == true ]]; then
           next
         }
         !added_using && !/^(global[ \t]+)?using[ \t]+[^;]+;[ \t]*$/ {
-          print "#if DEBUG"
+          print "#if DEBUG && (ANDROID || IOS || MACCATALYST || WINDOWS)"
           print "using Microsoft.Maui.DevFlow.Agent;"
           print "#endif"
           added_using=1
@@ -306,14 +306,14 @@ if [[ "$ANY_ACTIVE" == true ]]; then
         /^[ \t]*return[ \t]+builder\.Build\([ \t]*\)[ \t]*;/ {
           match($0, /^[ \t]*/)
           indent = substr($0, RSTART, RLENGTH)
-          print "#if DEBUG"
+          print "#if DEBUG && (ANDROID || IOS || MACCATALYST || WINDOWS)"
           print indent "builder.AddMauiDevFlowAgent();"
           print "#endif"
         }
         { print }
       ' "$mp" > "$mp.tmp" && mv "$mp.tmp" "$mp"
     fi
-    echo "[INJECTED] Added #if DEBUG builder.AddMauiDevFlowAgent() to $base_name"
+    echo "[INJECTED] Added #if DEBUG && (ANDROID || IOS || MACCATALYST || WINDOWS) builder.AddMauiDevFlowAgent() to $base_name"
   done
 fi
 exit 0

@@ -217,7 +217,7 @@ if ($Remove) {
     foreach ($csproj in $csprojFiles) {
         $txt = Get-Content -LiteralPath $csproj.FullName -Raw
         if ($txt -match 'Microsoft\.Maui\.DevFlow\.Agent') {
-            $updated = [regex]::Replace($txt, '(?is)\r?\n?[ \t]*<ItemGroup\s+Condition="''?\$\(Configuration\)''?\s*==\s*''?Debug''?"\s*>\s*<PackageReference\s+Include="Microsoft\.Maui\.DevFlow\.Agent"[^/>]*/>\s*</ItemGroup>[ \t]*', '')
+            $updated = [regex]::Replace($txt, '(?is)\r?\n?[ \t]*<ItemGroup\s+Condition="[^"]*Debug[^"]*"\s*>\s*<PackageReference\s+Include="Microsoft\.Maui\.DevFlow\.Agent"[^/>]*/>\s*</ItemGroup>[ \t]*', '')
             $updated = [regex]::Replace($updated, '(?im)^[ \t]*<PackageReference\s+[^>]*Include="Microsoft\.Maui\.DevFlow\.Agent"[^/>]*/>[ \t]*\r?\n?', '')
             if (-not $DryRun) { [IO.File]::WriteAllText($csproj.FullName, $updated, [Text.UTF8Encoding]::new($false)) }
             Write-Host "[REMOVED] Removed Microsoft.Maui.DevFlow.Agent from $($csproj.Name)"
@@ -226,8 +226,8 @@ if ($Remove) {
     foreach ($mp in $mauiPrograms) {
         $txt = Get-Content -LiteralPath $mp.FullName -Raw
         if ($txt -match 'AddMauiDevFlowAgent|Microsoft\.Maui\.DevFlow\.Agent') {
-            $updated = [regex]::Replace($txt, '(?m)#if\s+DEBUG\s*\r?\n[ \t]*using\s+Microsoft\.Maui\.DevFlow\.Agent;\s*\r?\n#endif\s*\r?\n?', '')
-            $updated = [regex]::Replace($updated, '(?m)#if\s+DEBUG\s*\r?\n[ \t]*builder\.AddMauiDevFlowAgent\(\s*\);\s*\r?\n#endif\s*\r?\n?', '')
+            $updated = [regex]::Replace($txt, '(?m)#if\s+DEBUG[^\r\n]*\r?\n[ \t]*using\s+Microsoft\.Maui\.DevFlow\.Agent;\s*\r?\n#endif\s*\r?\n?', '')
+            $updated = [regex]::Replace($updated, '(?m)#if\s+DEBUG[^\r\n]*\r?\n[ \t]*builder\.AddMauiDevFlowAgent\(\s*\);\s*\r?\n#endif\s*\r?\n?', '')
             if (-not $DryRun) { [IO.File]::WriteAllText($mp.FullName, $updated, [Text.UTF8Encoding]::new($false)) }
             Write-Host "[REMOVED] Removed DevFlow registration from $($mp.Name)"
         }
@@ -237,6 +237,8 @@ if ($Remove) {
 
 $targetVer = if ($Version) { $Version } else { $DefaultDevFlowVersion }
 $anyActive = $false
+$devFlowCond = "'`$(Configuration)' == 'Debug' and '`$(TargetFramework)' != 'net10.0' and '`$(TargetFramework)' != 'net11.0'"
+$devFlowIfGuard = "#if DEBUG && (ANDROID || IOS || MACCATALYST || WINDOWS)"
 
 foreach ($csproj in $csprojFiles) {
     $txt = Get-Content -LiteralPath $csproj.FullName -Raw
@@ -259,6 +261,14 @@ foreach ($csproj in $csprojFiles) {
     }
 
     if ($txt -match 'Microsoft\.Maui\.DevFlow\.Agent') {
+        $upgradedCond = [regex]::Replace(
+            $txt,
+            '(?i)(<ItemGroup\s+Condition=")''?\$\(Configuration\)''?\s*==\s*''?Debug''?("\s*>\s*<PackageReference\s+[^>]*Include="Microsoft\.Maui\.DevFlow\.Agent")',
+            "`${1}$devFlowCond`${2}"
+        )
+        if ($upgradedCond -ne $txt -and -not $DryRun) {
+            [IO.File]::WriteAllText($csproj.FullName, ($upgradedCond -replace "`r`n", "`n"), [Text.UTF8Encoding]::new($false))
+        }
         Write-Host "[OK] DevFlow PackageReference already present in $($csproj.Name)"
         $anyActive = $true
         continue
@@ -269,7 +279,7 @@ foreach ($csproj in $csprojFiles) {
         Write-Host "[WARN] Could not locate </Project> in $($csproj.Name); skipped."
         continue
     }
-    $snippet = "`n  <ItemGroup Condition=`"'`$(Configuration)' == 'Debug'`">`n    <PackageReference Include=`"Microsoft.Maui.DevFlow.Agent`" Version=`"$targetVer`" />`n  </ItemGroup>`n"
+    $snippet = "`n  <ItemGroup Condition=`"$devFlowCond`">`n    <PackageReference Include=`"Microsoft.Maui.DevFlow.Agent`" Version=`"$targetVer`" />`n  </ItemGroup>`n"
     $updated = $txt.Substring(0, $closeIdx).TrimEnd() + "`n" + $snippet + "</Project>`n"
     if (-not $DryRun) {
         [IO.File]::WriteAllText($csproj.FullName, ($updated -replace "`r`n", "`n"), [Text.UTF8Encoding]::new($false))
@@ -282,12 +292,21 @@ if ($anyActive) {
     foreach ($mp in $mauiPrograms) {
         $mpTxt = Get-Content -LiteralPath $mp.FullName -Raw
         if ($mpTxt -match 'AddMauiDevFlowAgent') {
-            Write-Host "[OK] AddMauiDevFlowAgent() already present in $($mp.Name)"
+            $upg = [regex]::Replace($mpTxt, '(?m)^#if\s+DEBUG[ \t]*\r?\n([ \t]*using\s+Microsoft\.Maui\.DevFlow\.Agent;\s*\r?\n#endif)', "$devFlowIfGuard`n`$1")
+            $upg = [regex]::Replace($upg, '(?m)^#if\s+DEBUG[ \t]*\r?\n([ \t]*builder\.AddMauiDevFlowAgent\(\s*\);\s*\r?\n#endif)', "$devFlowIfGuard`n`$1")
+            if ($upg -ne $mpTxt) {
+                if (-not $DryRun) {
+                    [IO.File]::WriteAllText($mp.FullName, ($upg -replace "`r`n", "`n"), [Text.UTF8Encoding]::new($false))
+                }
+                Write-Host "[UPDATED] Upgraded #if DEBUG guard in $($mp.Name) to '$devFlowIfGuard'"
+            } else {
+                Write-Host "[OK] AddMauiDevFlowAgent() already present in $($mp.Name)"
+            }
             continue
         }
         $updated = $mpTxt
         if ($updated -notmatch 'Microsoft\.Maui\.DevFlow\.Agent') {
-            $usingBlock = "#if DEBUG`nusing Microsoft.Maui.DevFlow.Agent;`n#endif`n"
+            $usingBlock = "$devFlowIfGuard`nusing Microsoft.Maui.DevFlow.Agent;`n#endif`n"
             $usingMatches = [regex]::Matches($updated, '(?m)^(?:global\s+)?using\s+[^;]+;\s*$')
             if ($usingMatches.Count -gt 0) {
                 $lastUsing = $usingMatches[$usingMatches.Count - 1]
@@ -303,12 +322,12 @@ if ($anyActive) {
             continue
         }
         $indent = $buildMatch.Groups[1].Value
-        $callBlock = "#if DEBUG`n${indent}builder.AddMauiDevFlowAgent();`n#endif`n"
+        $callBlock = "$devFlowIfGuard`n${indent}builder.AddMauiDevFlowAgent();`n#endif`n"
         $updated = $updated.Substring(0, $buildMatch.Index) + $callBlock + $updated.Substring($buildMatch.Index)
         if (-not $DryRun) {
             [IO.File]::WriteAllText($mp.FullName, ($updated -replace "`r`n", "`n"), [Text.UTF8Encoding]::new($false))
         }
-        Write-Host "[INJECTED] Added #if DEBUG builder.AddMauiDevFlowAgent() to $($mp.Name)"
+        Write-Host "[INJECTED] Added $devFlowIfGuard builder.AddMauiDevFlowAgent() to $($mp.Name)"
     }
 }
 exit 0

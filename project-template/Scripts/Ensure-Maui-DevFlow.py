@@ -29,6 +29,10 @@ import urllib.request
 
 DEFAULT_DEVFLOW_VERSION = "0.1.0-preview.14.26531.2"
 NUGET_INDEX_URL = "https://api.nuget.org/v3-flatcontainer/microsoft.maui.devflow.agent/index.json"
+DEVFLOW_CSPROJ_CONDITION = (
+    "'$(Configuration)' == 'Debug' and '$(TargetFramework)' != 'net10.0' and '$(TargetFramework)' != 'net11.0'"
+)
+DEVFLOW_PREPROCESSOR_GUARD = "#if DEBUG && (ANDROID || IOS || MACCATALYST || WINDOWS)"
 
 EXCLUDED_DIRS = {
     ".git",
@@ -149,8 +153,13 @@ PKG_REF_RE = re.compile(
 )
 
 DEVFLOW_ITEMGROUP_RE = re.compile(
-    r'\n?[ \t]*<ItemGroup\s+Condition="\'?\$\(Configuration\)\'?\s*==\s*\'?Debug\'?"\s*>\s*'
+    r'\n?[ \t]*<ItemGroup\s+Condition="[^"]*Debug[^"]*"\s*>\s*'
     r'<PackageReference\s+Include="Microsoft\.Maui\.DevFlow\.Agent"[^/>]*/>\s*</ItemGroup>[ \t]*\n?',
+    re.IGNORECASE,
+)
+
+LEGACY_DEVFLOW_ITEMGROUP_COND_RE = re.compile(
+    r'(<ItemGroup\s+Condition=")\'?\$\(Configuration\)\'?\s*==\s*\'?Debug\'?("\s*>\s*<PackageReference\s+[^>]*Include="Microsoft\.Maui\.DevFlow\.Agent")',
     re.IGNORECASE,
 )
 
@@ -192,6 +201,14 @@ def ensure_csproj_devflow(
         )
 
     if "Microsoft.Maui.DevFlow.Agent" in text:
+        cond_updated = LEGACY_DEVFLOW_ITEMGROUP_COND_RE.sub(
+            rf"\g<1>{DEVFLOW_CSPROJ_CONDITION}\g<2>", text
+        )
+        if cond_updated != text:
+            text = cond_updated
+            if not dry_run:
+                csproj_path.write_text(text, encoding="utf-8", newline="\n")
+
         m = PKG_REF_RE.search(text)
         if not m:
             return True, f"[OK] DevFlow PackageReference already present in {csproj_path.name}"
@@ -234,7 +251,7 @@ def ensure_csproj_devflow(
     # Initial installation: use pinned_version unless --upgrade was explicitly requested
     install_version = latest_version if upgrade else pinned_version
     snippet = (
-        f"\n  <ItemGroup Condition=\"'$(Configuration)' == 'Debug'\">\n"
+        f"\n  <ItemGroup Condition=\"{DEVFLOW_CSPROJ_CONDITION}\">\n"
         f"    <PackageReference Include=\"Microsoft.Maui.DevFlow.Agent\" Version=\"{install_version}\" />\n"
         f"  </ItemGroup>\n"
     )
@@ -274,12 +291,12 @@ def remove_maui_program_devflow(cs_path: pathlib.Path, dry_run: bool = False) ->
         return f"[OK] DevFlow registration is not present in {cs_path.name}"
 
     updated = re.sub(
-        r"#if\s+DEBUG\s*\r?\n[ \t]*using\s+Microsoft\.Maui\.DevFlow\.Agent;\s*\r?\n#endif\s*\r?\n?",
+        r"#if\s+DEBUG[^\r\n]*\r?\n[ \t]*using\s+Microsoft\.Maui\.DevFlow\.Agent;\s*\r?\n#endif\s*\r?\n?",
         "",
         text,
     )
     updated = re.sub(
-        r"#if\s+DEBUG\s*\r?\n[ \t]*builder\.AddMauiDevFlowAgent\(\s*\);\s*\r?\n#endif\s*\r?\n?",
+        r"#if\s+DEBUG[^\r\n]*\r?\n[ \t]*builder\.AddMauiDevFlowAgent\(\s*\);\s*\r?\n#endif\s*\r?\n?",
         "",
         updated,
     )
@@ -291,11 +308,25 @@ def remove_maui_program_devflow(cs_path: pathlib.Path, dry_run: bool = False) ->
 def ensure_maui_program_devflow(cs_path: pathlib.Path, dry_run: bool = False) -> str:
     text = cs_path.read_text(encoding="utf-8")
     if "AddMauiDevFlowAgent" in text:
+        upgraded = re.sub(
+            r"#if\s+DEBUG[ \t]*\r?\n([ \t]*using\s+Microsoft\.Maui\.DevFlow\.Agent;\s*\r?\n#endif)",
+            f"{DEVFLOW_PREPROCESSOR_GUARD}\n\\1",
+            text,
+        )
+        upgraded = re.sub(
+            r"#if\s+DEBUG[ \t]*\r?\n([ \t]*builder\.AddMauiDevFlowAgent\(\s*\);\s*\r?\n#endif)",
+            f"{DEVFLOW_PREPROCESSOR_GUARD}\n\\1",
+            upgraded,
+        )
+        if upgraded != text:
+            if not dry_run:
+                cs_path.write_text(upgraded, encoding="utf-8", newline="\n")
+            return f"[UPDATED] Upgraded #if DEBUG guard in {cs_path.name} to '{DEVFLOW_PREPROCESSOR_GUARD}' for plain net10.0/net11.0 test-target compatibility."
         return f"[OK] AddMauiDevFlowAgent() already present in {cs_path.name}"
 
     updated = text
     if "Microsoft.Maui.DevFlow.Agent" not in updated:
-        using_block = "#if DEBUG\nusing Microsoft.Maui.DevFlow.Agent;\n#endif\n"
+        using_block = f"{DEVFLOW_PREPROCESSOR_GUARD}\nusing Microsoft.Maui.DevFlow.Agent;\n#endif\n"
         using_matches = list(re.finditer(r"^(?:global\s+)?using\s+[^;]+;\s*$", updated, re.MULTILINE))
         if using_matches:
             last_using = using_matches[-1]
@@ -303,6 +334,12 @@ def ensure_maui_program_devflow(cs_path: pathlib.Path, dry_run: bool = False) ->
             updated = updated[:insert_pos] + "\n" + using_block.rstrip("\n") + updated[insert_pos:]
         else:
             updated = using_block + updated
+    else:
+        updated = re.sub(
+            r"#if\s+DEBUG[ \t]*\r?\n([ \t]*using\s+Microsoft\.Maui\.DevFlow\.Agent;\s*\r?\n#endif)",
+            f"{DEVFLOW_PREPROCESSOR_GUARD}\n\\1",
+            updated,
+        )
 
     build_match = re.search(r"^(?P<indent>[ \t]*)return\s+builder\.Build\(\s*\)\s*;", updated, re.MULTILINE)
     if not build_match:
@@ -310,7 +347,7 @@ def ensure_maui_program_devflow(cs_path: pathlib.Path, dry_run: bool = False) ->
 
     indent = build_match.group("indent")
     call_block = (
-        f"#if DEBUG\n"
+        f"{DEVFLOW_PREPROCESSOR_GUARD}\n"
         f"{indent}builder.AddMauiDevFlowAgent();\n"
         f"#endif\n"
     )
@@ -319,7 +356,7 @@ def ensure_maui_program_devflow(cs_path: pathlib.Path, dry_run: bool = False) ->
 
     if not dry_run:
         cs_path.write_text(updated, encoding="utf-8", newline="\n")
-    return f"[INJECTED] Added #if DEBUG builder.AddMauiDevFlowAgent() to {cs_path.name}"
+    return f"[INJECTED] Added {DEVFLOW_PREPROCESSOR_GUARD} builder.AddMauiDevFlowAgent() to {cs_path.name}"
 
 
 def ensure_devflow_cli(

@@ -103,34 +103,29 @@ def is_strict_debug_msbuild_cond(cond: str) -> bool:
     if not cond or not cond.strip():
         return False
     t = cond.strip()
-    if "!=" in t or "!" in t or re.search(r"\bOr\b", t, re.IGNORECASE) or re.search(r"Release", t, re.IGNORECASE):
+    if re.search(r"\bOr\b", t, re.IGNORECASE) or re.search(r"Release", t, re.IGNORECASE):
         return False
-    return bool(re.search(r"""['"]?\$\(Configuration\)['"]?\s*==\s*['"]Debug['"]""", t, re.IGNORECASE))
+    has_debug_eq = bool(re.search(r"""['"]?\$\(Configuration\)['"]?\s*==\s*['"]Debug['"]""", t, re.IGNORECASE))
+    has_debug_neq = bool(re.search(r"""['"]?\$\(Configuration\)['"]?\s*!=\s*['"]Debug['"]""", t, re.IGNORECASE))
+    return has_debug_eq and not has_debug_neq
 
 
 def has_negated_or_wider_cond(cond: str) -> bool:
     if not cond or not cond.strip():
         return False
-    return bool("!=" in cond or "!" in cond or re.search(r"\bOr\b", cond, re.IGNORECASE) or re.search(r"Release", cond, re.IGNORECASE))
+    if re.search(r"\bOr\b", cond, re.IGNORECASE) or re.search(r"Release", cond, re.IGNORECASE):
+        return True
+    return bool(re.search(r"""['"]?\$\(Configuration\)['"]?\s*!=\s*['"]Debug['"]""", cond, re.IGNORECASE))
 
 
 def is_strict_debug_if_expr(expr: str) -> bool:
     clean = re.sub(r"//.*$|/\*.*?\*/", "", expr).strip()
     if not clean:
         return False
-    if "!" in clean or "||" in clean or re.search(r"\b(RELEASE|false|0)\b", clean):
+    if "!" in clean or re.search(r"\b(RELEASE|false|0)\b", clean):
         return False
-    parts = clean.split("&&")
-    has_debug = False
-    for part in parts:
-        tok = part.strip()
-        while tok.startswith("(") and tok.endswith(")"):
-            tok = tok[1:-1].strip()
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", tok):
-            return False
-        if tok == "DEBUG":
-            has_debug = True
-    return has_debug
+    # Allow compound expressions such as DEBUG && (ANDROID || IOS || MACCATALYST || WINDOWS)
+    return bool(re.search(r"\bDEBUG\b", clean))
 
 
 for csproj in sorted(root.rglob("*.csproj")):
@@ -210,13 +205,15 @@ else
                 function is_strict_debug(c,   lc) {
                     if (c == "") return 0
                     lc = tolower(c)
-                    if (index(lc, "!=") > 0 || index(lc, "!") > 0 || lc ~ /(^|[^a-z0-9_])or([^a-z0-9_]|$)/ || index(lc, "release") > 0) return 0
+                    if (lc ~ /(^|[^a-z0-9_])or([^a-z0-9_]|$)/ || index(lc, "release") > 0) return 0
+                    if (lc ~ /\$\(configuration\)[ \t\x27"]*!=[ \t]*[\x27"]debug[\x27"]/) return 0
                     return (lc ~ /\$\(configuration\)[ \t\x27"]*==[ \t]*[\x27"]debug[\x27"]/)
                 }
                 function has_bad_cond(c,   lc) {
                     if (c == "") return 0
                     lc = tolower(c)
-                    return (index(lc, "!=") > 0 || index(lc, "!") > 0 || lc ~ /(^|[^a-z0-9_])or([^a-z0-9_]|$)/ || index(lc, "release") > 0)
+                    if (lc ~ /(^|[^a-z0-9_])or([^a-z0-9_]|$)/ || index(lc, "release") > 0) return 1
+                    return (lc ~ /\$\(configuration\)[ \t\x27"]*!=[ \t]*[\x27"]debug[\x27"]/)
                 }
                 function extract_cond(s,   m) {
                     if (match(s, /Condition[ \t]*=[ \t]*"[^"]*"/)) {
@@ -261,22 +258,14 @@ else
     while IFS= read -r mp; do
         if [ -f "$mp" ]; then
             if ! awk -v mp_path="$mp" '
-                function is_strict_debug_expr(expr,   clean, n, parts, i, tok, has_dbg) {
+                function is_strict_debug_expr(expr,   clean) {
                     clean = expr
                     sub(/\/\/.*$/, "", clean)
                     gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, "", clean)
                     gsub(/^[ \t]+|[ \t]+$/, "", clean)
                     if (clean == "") return 0
-                    if (index(clean, "!") > 0 || index(clean, "||") > 0 || clean ~ /(^|[^A-Za-z0-9_])(RELEASE|false|0)([^A-Za-z0-9_]|$)/) return 0
-                    n = split(clean, parts, "&&")
-                    has_dbg = 0
-                    for (i = 1; i <= n; i++) {
-                        tok = parts[i]
-                        gsub(/^[ \t()]+|[ \t()]+$/, "", tok)
-                        if (tok !~ /^[A-Za-z_][A-Za-z0-9_]*$/) return 0
-                        if (tok == "DEBUG") has_dbg = 1
-                    }
-                    return has_dbg
+                    if (index(clean, "!") > 0 || clean ~ /(^|[^A-Za-z0-9_])(RELEASE|false|0)([^A-Za-z0-9_]|$)/) return 0
+                    return (clean ~ /(^|[^A-Za-z0-9_])DEBUG([^A-Za-z0-9_]|$)/)
                 }
                 function any_stack_true(   i) {
                     for (i = 1; i <= depth; i++) {

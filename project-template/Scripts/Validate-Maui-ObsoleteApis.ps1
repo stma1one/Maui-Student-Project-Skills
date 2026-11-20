@@ -82,38 +82,31 @@ foreach ($rule in $rules) {
 function Test-IsStrictDebugMsBuildCondition([string]$Cond) {
     if ([string]::IsNullOrWhiteSpace($Cond)) { return $false }
     $trimmed = $Cond.Trim()
-    if ($trimmed -match '!=' -or $trimmed -match '!' -or $trimmed -match '(?i)\bOr\b' -or $trimmed -match '(?i)Release') {
+    if ($trimmed -match '(?i)\bOr\b' -or $trimmed -match '(?i)Release') {
         return $false
     }
-    return ($trimmed -match "(?i)['`"]?\$\(Configuration\)['`"]?\s*==\s*['`"]Debug['`"]")
+    # Permit negative checks against TargetFramework (e.g. '$(TargetFramework)' != 'net10.0') to avoid linking DevFlow to non-device test runners
+    $hasDebugEq = ($trimmed -match "(?i)['`"]?\$\(Configuration\)['`"]?\s*==\s*['`"]Debug['`"]")
+    $hasDebugNeq = ($trimmed -match "(?i)['`"]?\$\(Configuration\)['`"]?\s*!=\s*['`"]Debug['`"]")
+    return ($hasDebugEq -and -not $hasDebugNeq)
 }
 
 function Test-HasNegatedOrWiderMsBuildCondition([string]$Cond) {
     if ([string]::IsNullOrWhiteSpace($Cond)) { return $false }
-    return ($Cond -match '!=' -or $Cond -match '!' -or $Cond -match '(?i)\bOr\b' -or $Cond -match '(?i)Release')
+    if ($Cond -match '(?i)\bOr\b' -or $Cond -match '(?i)Release') { return $true }
+    # Only flag != if it is checking Configuration != Debug (which would activate on Release)
+    if ($Cond -match "(?i)['`"]?\$\(Configuration\)['`"]?\s*!=\s*['`"]Debug['`"]") { return $true }
+    return $false
 }
 
 function Test-IsStrictDebugPreprocessorExpr([string]$Expr) {
     $clean = [regex]::Replace($Expr, '//.*$|/\*.*?\*/', '').Trim()
     if ([string]::IsNullOrWhiteSpace($clean)) { return $false }
-    if ($clean -match '!' -or $clean -match '\|\|' -or $clean -match '\bRELEASE\b' -or $clean -match '\bfalse\b' -or $clean -match '\b0\b') {
+    if ($clean -match '!' -or $clean -match '\bRELEASE\b' -or $clean -match '\bfalse\b' -or $clean -match '\b0\b') {
         return $false
     }
-    $parts = $clean -split '&&'
-    $hasDebug = $false
-    foreach ($part in $parts) {
-        $tok = $part.Trim()
-        while ($tok.StartsWith('(') -and $tok.EndsWith(')')) {
-            $tok = $tok.Substring(1, $tok.Length - 2).Trim()
-        }
-        if ($tok -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
-            return $false
-        }
-        if ($tok -ceq 'DEBUG') {
-            $hasDebug = $true
-        }
-    }
-    return $hasDebug
+    # Must explicitly require DEBUG to be present as a defined constant
+    return ($clean -match '\bDEBUG\b')
 }
 
 # Check Microsoft.Maui.DevFlow Debug-only isolation (.csproj and MauiProgram.cs)
