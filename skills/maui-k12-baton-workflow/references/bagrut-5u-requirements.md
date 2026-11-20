@@ -75,6 +75,8 @@ The student must satisfy **one** of these two combinations from Sections 9 and 1
 * **`9.1` / `9.3`** **Custom 2D Graphics (`GraphicsView` + `IDrawable` / `ICanvas`):** Custom drawing, game boards, interactive charts, or visual canvases.
 * **`9.2`** **Scheduled Notifications (`AlarmManager + Notification`):** Local scheduled notifications (`Plugin.LocalNotification` or platform notification service).
 * **`9.4`** **Maps & Location Data (`Microsoft.Maui.Controls.Maps.Map`):** Interactive map displaying pins, routes, or location-aware data.
+  - **Official .NET MAUI Map Reference:** https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0 (`Microsoft.Maui.Controls.Maps` NuGet, `.UseMauiMaps()` in `MauiProgram.cs`, `xmlns:maps="http://schemas.microsoft.com/dotnet/2021/maui/maps"`).
+  - **Google Maps Android API Key Setup (Hebrew Guide for Students):** https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he (configure `<meta-data android:name="com.google.android.geo.API_KEY" ... />` and `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` in `Platforms/Android/AndroidManifest.xml`).
 * **`9.5`** **Continuous Location / Motion Listeners (`מאזיני מיקום / תנועה`):** Active location tracking (`Geolocation.StartListeningForegroundAsync`) or motion listeners (`Accelerometer`, `Gyroscope`, `Compass`).
 * **`9.6`** **Bluetooth (`BLE`):** Communicating with Bluetooth devices (requires physical device testing).
 * **`9.7`** **NFC:** Reading/writing NFC tags (requires physical device testing).

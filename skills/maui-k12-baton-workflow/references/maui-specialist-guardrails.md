@@ -43,8 +43,8 @@ However, you MUST actively query official documentation (Microsoft Learn for MAU
    - When adding or choosing packages for SQLite, local storage, or platform bindings.
    - Purpose: Ensure zero package conflicts and correct platform provider bundles.
 2. **Platform & Device-Specific Features**:
-   - When using `WebView`, `MediaPicker`, `Geolocation`, `Permissions`, or native hardware controls.
-   - Purpose: Ensure correct MAUI-specific XAML controls and lifecycle methods are used (not Web or standard desktop idioms).
+   - When using `Map` (`Microsoft.Maui.Controls.Maps` — https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0 and Google Maps Android API Key setup in Hebrew: https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he), `WebView`, `MediaPicker`, `Geolocation`, `Permissions`, or native hardware controls.
+   - Purpose: Ensure correct MAUI-specific XAML controls, `.UseMauiMaps()` builder registration, Android manifest metadata/permissions, and lifecycle methods are used (not Web or standard desktop idioms).
 3. **Cloud, AI & Third-Party SDK Integration**:
    - **Google AI / Gemini API (Single Source of Truth):** When integrating Google Gemini / Generative AI in .NET MAUI, use **https://googleapis.github.io/dotnet-genai/** (the official `Google.GenAI` .NET SDK) as the authoritative source of truth.
    - When integrating Firebase, Firestore, Authentication providers, or Azure services in a MAUI client.
@@ -111,6 +111,31 @@ Implementation rules:
 - Prefer ViewModel validation state plus binding, `DataTrigger`, or `VisualStateManager`.
 - Every `StaticResource`, `DynamicResource`, `BasedOn`, and `x:Key` reference must resolve in scope (either within the same XAML file's `Resources` or in `App.xaml` / `Resources/Styles/*.xaml`).
 - Put shared styles in `Resources/Styles/Styles.xaml`, shared colors in `Resources/Styles/Colors.xaml`, and page-specific styles in page resources.
+
+## Maps Integration (`Microsoft.Maui.Controls.Maps` — Single Source of Truth)
+
+When a student project integrates interactive maps (for example, to fulfill Ministry of Education 5-unit Bagrut Section 9 topic `9.4` — שילוב מפות ושימוש בנתוני מיקום):
+
+- **Authoritative .NET MAUI Map Documentation:** **https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0**
+- **Authoritative Google Maps Android API Key Guide (Hebrew):** **https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he**
+- **Required Setup & Configuration Checklist:**
+  1. **NuGet Package:** Install `Microsoft.Maui.Controls.Maps` (`dotnet add package Microsoft.Maui.Controls.Maps` or `Version="$(MauiVersion)"`).
+  2. **`MauiProgram.cs` Registration:** Chain `.UseMauiMaps()` onto `MauiAppBuilder` inside `CreateMauiApp()`:
+     ```csharp
+     builder
+         .UseMauiApp<App>()
+         .UseMauiMaps();
+     ```
+  3. **Google Maps Android SDK API Key & `Platforms/Android/AndroidManifest.xml`:**
+     - Guide the student to create a Google Maps Android API Key using the official Hebrew instructions: https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he
+     - In `Platforms/Android/AndroidManifest.xml`, add `<meta-data android:name="com.google.android.geo.API_KEY" android:value="YOUR_GOOGLE_MAPS_API_KEY" />` inside `<application>...</application>`, and declare location permissions (`ACCESS_COARSE_LOCATION`, `ACCESS_FINE_LOCATION`) inside `<manifest>...</manifest>`. (Warn the student not to commit an unrestricted production billing key to a public repository).
+  4. **XAML & MVVM Data Binding (`xmlns:maps="http://schemas.microsoft.com/dotnet/2021/maui/maps"`):**
+     - Bind pins cleanly from an `ObservableCollection<PinModel>` in the ViewModel using `ItemsSource` and `ItemTemplate` (`<maps:Pin Location="{Binding Location}" Label="{Binding Label}" Address="{Binding Address}" />`).
+     - Request runtime location permissions (`Permissions.RequestAsync<Permissions.LocationWhenInUse>()`) before setting `IsShowingUser="True"` or calling `Geolocation.Default.GetLocationAsync()`.
+  5. **Platform Support & Android Verification Note:**
+     - As documented in https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0, `Microsoft.Maui.Controls.Maps` renders natively on **Android, iOS, and Mac Catalyst** (not on Windows WinUI desktop). Always verify and capture live map screenshots on the **Android emulator/device** (or provide an Android-framed mockup fallback if offline).
+  6. **Unit Testing Map & Location Logic in `xunit.v3`:**
+     - Keep distance calculations (`Location.CalculateDistance`), pin filtering, and radius searches inside a ViewModel or Service method (using `ILocationService` fake in tests) so `xunit.v3` tests verify location filtering and pin generation without instantiating the native `Map` UI control.
 
 ## Shell Navigation
 

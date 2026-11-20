@@ -248,9 +248,9 @@ def validate_package_manifests(repo_root: Path) -> list[str]:
         mtext = manifest_path.read_text(encoding="utf-8")
         if "__pycache__" in mtext or ".pyc" in mtext:
             errors.append("PACKAGE-MANIFEST.md contains forbidden __pycache__ / .pyc entries.")
-        if "Version: 1.5.0" not in mtext:
-            errors.append("PACKAGE-MANIFEST.md must declare 'Version: 1.5.0'.")
-        for rel_ver in ("1.5.0 Release Notes", "1.4.1 Release Notes", "1.4.0 Release Notes", "1.3.0 Release Notes", "1.2.0 Release Notes"):
+        if "Version: 1.5.1" not in mtext:
+            errors.append("PACKAGE-MANIFEST.md must declare 'Version: 1.5.1'.")
+        for rel_ver in ("1.5.1 Release Notes", "1.5.0 Release Notes", "1.4.1 Release Notes", "1.4.0 Release Notes", "1.3.0 Release Notes", "1.2.0 Release Notes"):
             if rel_ver not in mtext:
                 errors.append(f"PACKAGE-MANIFEST.md is missing section '{rel_ver}'.")
         if "Vanilla C# MVVM Policy" not in mtext:
@@ -282,14 +282,14 @@ def validate_package_manifests(repo_root: Path) -> list[str]:
         cff_text = cff_path.read_text(encoding="utf-8")
         if "cff-version: 1.2.0" not in cff_text:
             errors.append("CITATION.cff must declare 'cff-version: 1.2.0'.")
-        if "version: 1.5.0" not in cff_text:
-            errors.append("CITATION.cff must declare 'version: 1.5.0'.")
+        if "version: 1.5.1" not in cff_text:
+            errors.append("CITATION.cff must declare 'version: 1.5.1'.")
 
     readme_path = repo_root / "README.md"
     if readme_path.is_file():
         rtext = readme_path.read_text(encoding="utf-8")
-        if "(v1.5.0)" not in rtext:
-            errors.append("README.md must reference package version '(v1.5.0)'.")
+        if "(v1.5.1)" not in rtext:
+            errors.append("README.md must reference package version '(v1.5.1)'.")
 
     comp_root = repo_root / "companion-skills/maui-step-guide-author"
     comp_manifest_path = comp_root / "PACKAGE-MANIFEST.md"
@@ -300,8 +300,8 @@ def validate_package_manifests(repo_root: Path) -> list[str]:
             if p.is_file() and "__pycache__" not in p.as_posix() and not p.name.endswith(".pyc")
         )
         ctext = comp_manifest_path.read_text(encoding="utf-8")
-        if "Version: 1.5.0" not in ctext:
-            errors.append("companion PACKAGE-MANIFEST.md must declare 'Version: 1.5.0'.")
+        if "Version: 1.5.1" not in ctext:
+            errors.append("companion PACKAGE-MANIFEST.md must declare 'Version: 1.5.1'.")
         c_inv = re.search(r"## Included Files\s*```text\n(?P<block>.*?)```", ctext, re.DOTALL)
         if not c_inv:
             errors.append("companion PACKAGE-MANIFEST.md missing '## Included Files' text block.")

@@ -278,6 +278,38 @@ if ($usesGoogleGenAi) {
     }
 }
 
+# Check Microsoft.Maui.Controls.Maps setup (.UseMauiMaps() in MauiProgram.cs and com.google.android.geo.API_KEY in AndroidManifest.xml)
+$usesMauiMaps = $false
+foreach ($csproj in $csprojFiles) {
+    $xmlText = Get-Content -LiteralPath $csproj.FullName -Raw
+    if ($xmlText -match 'Microsoft\.Maui\.Controls\.Maps') {
+        $usesMauiMaps = $true
+        break
+    }
+}
+if ($usesMauiMaps) {
+    foreach ($mp in $mauiProgramFiles) {
+        $mpRaw = Get-Content -LiteralPath $mp.FullName -Raw
+        if ($mpRaw -notmatch '\bUseMauiMaps\s*\(') {
+            $found = $true
+            Write-Host "[REVIEW] Missing .UseMauiMaps() in MauiProgram.cs -> $($mp.FullName)" -ForegroundColor Yellow
+            Write-Host "  Replacement: Chain .UseMauiMaps() onto MauiAppBuilder in CreateMauiApp()"
+            Write-Host "  Reference:   https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0"
+        }
+    }
+    $manifests = Get-ChildItem -Path $ProjectRoot -Recurse -Filter "AndroidManifest.xml" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch "[\\/](bin|obj|\.git|\.vs)[\\/]" }
+    foreach ($mf in $manifests) {
+        $mfText = Get-Content -LiteralPath $mf.FullName -Raw
+        if ($mfText -notmatch 'com\.google\.android\.geo\.API_KEY') {
+            $found = $true
+            Write-Host "[REVIEW] Missing com.google.android.geo.API_KEY in AndroidManifest.xml -> $($mf.FullName)" -ForegroundColor Yellow
+            Write-Host "  Replacement: Add <meta-data android:name=`"com.google.android.geo.API_KEY`" android:value=`"YOUR_API_KEY`" /> inside <application>"
+            Write-Host "  Reference:   https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he"
+        }
+    }
+}
+
 if ($found) {
     Write-Host "RESULT: CHECK REQUIRED" -ForegroundColor Yellow
     exit 1

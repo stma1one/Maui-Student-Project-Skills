@@ -1,7 +1,7 @@
 # Package Manifest
 
 Package: MAUI K12 Baton Workflow Skill
-Version: 1.5.0
+Version: 1.5.1
 Status: classroom-ready
 
 ## Purpose
@@ -112,7 +112,7 @@ maui-k12-baton-workflow
 Companion Skill:
 
 ```text
-maui-step-guide-author (v1.5.0)
+maui-step-guide-author (v1.5.1)
 ```
 
 ## Required Target Project Files (Installed by `Install-Skill`)
@@ -143,6 +143,11 @@ Learning/Diagrams/
 Scripts/*
 ```
 *(Note: `evals/` directories and `Set-Maui-Agent-Mode.*` instructor scripts are intentionally excluded from student project installations).*
+
+## 1.5.1 Release Notes (.NET MAUI Maps Reference, Android Google Maps API Key Guide & Automated Guardrails)
+
+- **Official .NET MAUI Map Control & Google Maps Android API Key References:** Added **https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0** (`Microsoft.Maui.Controls.Maps`) and the official Hebrew Google Maps Android API Key guide **https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he** as Single Source of Truth references in `references/maui-specialist-guardrails.md`, `references/bagrut-5u-requirements.md` (Section `9.4`), `SKILL.md`, `project-template/AGENTS.md`, and `Learning/AI-And-External-Code-Attribution.md` (`Setup-Skills.ps1/.sh`).
+- **Automated Maps Verification (`Validate-Maui-ObsoleteApis.ps1`):** When `Microsoft.Maui.Controls.Maps` is referenced in `.csproj`, automatically verifies that `MauiProgram.cs` calls `.UseMauiMaps()` and that `Platforms/Android/AndroidManifest.xml` declares `com.google.android.geo.API_KEY`.
 
 ## 1.5.0 Release Notes (xUnit v3 Test Suite & Modes, Google.GenAI SDK, Android & Diagram PNGs, Mandatory PDF Gate & SetProperty Soft-Gate)
 
