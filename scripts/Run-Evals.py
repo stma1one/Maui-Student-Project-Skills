@@ -577,6 +577,24 @@ def validate_install_and_compliance_scripts(repo_root: Path) -> list[str]:
                 if res_devflow_posix_ps.returncode != 0:
                     errors.append(f"Ensure-Maui-DevFlow.ps1 failed with POSIX flags (--project-root / --skip-cli): {res_devflow_posix_ps.stdout} {res_devflow_posix_ps.stderr}")
 
+                ensure_test_ps1 = repo_root / "project-template/Scripts/Ensure-Test-Project.ps1"
+                val_test_ps1 = repo_root / "project-template/Scripts/Validate-Tests.ps1"
+                res_etp_ps = subprocess.run(
+                    [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ensure_test_ps1), "-ProjectRoot", str(net10_dir), "-Offline"],
+                    capture_output=True,
+                    text=True,
+                )
+                if res_etp_ps.returncode != 0:
+                    errors.append(f"Ensure-Test-Project.ps1 failed via PowerShell: {res_etp_ps.stdout} {res_etp_ps.stderr}")
+
+                res_vt_ps = subprocess.run(
+                    [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(val_test_ps1), "-ProjectRoot", str(net10_dir), "-SkipDotnetRun"],
+                    capture_output=True,
+                    text=True,
+                )
+                if res_vt_ps.returncode != 0:
+                    errors.append(f"Validate-Tests.ps1 failed via PowerShell (WindowsApps alias check): {res_vt_ps.stdout} {res_vt_ps.stderr}")
+
                 res_valid_ps = subprocess.run(
                     [pwsh_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(obsolete_ps1), "-ProjectRoot", str(net10_dir)],
                     capture_output=True,

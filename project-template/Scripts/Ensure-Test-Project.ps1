@@ -57,19 +57,51 @@ if ($SkipTests -or ($env:MAUI_SKIP_TESTS -match '^(1|true|yes)$')) {
     exit 0
 }
 
-$scriptPath = Join-Path $PSScriptRoot "Ensure-Test-Project.py"
-foreach ($candidate in @("python3", "python", "py")) {
-    $cmd = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($cmd) {
-        $pyArgs = @()
-        if ($candidate -eq "py") { $pyArgs += "-3" }
-        $pyArgs += @($scriptPath, "--project-root", $ProjectRoot)
-        if ($SkipTests) { $pyArgs += "--skip-tests" }
-        if ($Offline) { $pyArgs += "--offline" }
-        if ($DryRun) { $pyArgs += "--dry-run" }
-        & $cmd.Source @pyArgs
-        if ($LASTEXITCODE -eq 0) { exit 0 }
+function Find-WorkingPython3 {
+    foreach ($candidate in @("python", "python3", "py")) {
+        $cmds = @(Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue)
+        foreach ($cmd in $cmds) {
+            if ($cmd.Source -match '[\\/]Microsoft[\\/]WindowsApps[\\/]') { continue }
+            try {
+                if ($candidate -eq "py") {
+                    & $cmd.Source -3 -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
+                    if ($LASTEXITCODE -eq 0) { return ,@($cmd.Source, "-3") }
+                } else {
+                    & $cmd.Source -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
+                    if ($LASTEXITCODE -eq 0) { return ,@($cmd.Source) }
+                }
+            } catch {}
+        }
     }
+    $localPaths = @()
+    $localPaths += Get-ChildItem -Path "C:\Python3*\python.exe" -ErrorAction SilentlyContinue
+    if ($env:LocalAppData) {
+        $localPaths += Get-ChildItem -Path (Join-Path $env:LocalAppData "Programs\Python\Python3*\python.exe") -ErrorAction SilentlyContinue
+    }
+    if ($env:ProgramFiles) {
+        $localPaths += Get-ChildItem -Path (Join-Path $env:ProgramFiles "Python3*\python.exe") -ErrorAction SilentlyContinue
+    }
+    foreach ($exe in ($localPaths | Sort-Object FullName -Descending)) {
+        try {
+            & $exe.FullName -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
+            if ($LASTEXITCODE -eq 0) { return ,@($exe.FullName) }
+        } catch {}
+    }
+    return $null
+}
+
+$scriptPath = Join-Path $PSScriptRoot "Ensure-Test-Project.py"
+$pythonSpec = @(Find-WorkingPython3 | Where-Object { $null -ne $_ -and $_ -ne "" })
+if ($pythonSpec.Count -gt 0 -and (Test-Path -LiteralPath $scriptPath)) {
+    $pyExe = [string]$pythonSpec[0]
+    $pyArgs = @()
+    if ($pythonSpec.Count -gt 1) { $pyArgs += $pythonSpec[1..($pythonSpec.Count - 1)] }
+    $pyArgs += @($scriptPath, "--project-root", $ProjectRoot)
+    if ($SkipTests) { $pyArgs += "--skip-tests" }
+    if ($Offline) { $pyArgs += "--offline" }
+    if ($DryRun) { $pyArgs += "--dry-run" }
+    & $pyExe @pyArgs
+    exit $LASTEXITCODE
 }
 
 # Native PowerShell fallback when Python is unavailable

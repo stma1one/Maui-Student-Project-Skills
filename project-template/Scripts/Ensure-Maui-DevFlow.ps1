@@ -119,9 +119,10 @@ function Ensure-DevFlowCli([switch]$Upgrade) {
 Ensure-DevFlowCli -Upgrade:$Upgrade
 
 function Find-WorkingPython3 {
-    foreach ($candidate in @("python3", "python", "py")) {
-        $cmd = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($cmd) {
+    foreach ($candidate in @("python", "python3", "py")) {
+        $cmds = @(Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue)
+        foreach ($cmd in $cmds) {
+            if ($cmd.Source -match '[\\/]Microsoft[\\/]WindowsApps[\\/]') { continue }
             try {
                 if ($candidate -eq "py") {
                     & $cmd.Source -3 -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
@@ -134,6 +135,7 @@ function Find-WorkingPython3 {
         }
     }
     $localPaths = @()
+    $localPaths += Get-ChildItem -Path "C:\Python3*\python.exe" -ErrorAction SilentlyContinue
     if ($env:LocalAppData) {
         $localPaths += Get-ChildItem -Path (Join-Path $env:LocalAppData "Programs\Python\Python3*\python.exe") -ErrorAction SilentlyContinue
     }

@@ -11,9 +11,15 @@ if ($SubmissionReady) {
 }
 
 $pyCmd = $null
-foreach ($candidate in @("python", "python3")) {
-    $cmd = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($cmd) { $pyCmd = $cmd.Source; break }
+foreach ($candidate in @("python", "python3", "py")) {
+    foreach ($cmd in @(Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue)) {
+        if ($cmd.Source -match '[\\/]Microsoft[\\/]WindowsApps[\\/]') { continue }
+        try {
+            & $cmd.Source -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
+            if ($LASTEXITCODE -eq 0) { $pyCmd = $cmd.Source; break }
+        } catch {}
+    }
+    if ($pyCmd) { break }
 }
 if (-not $pyCmd) {
     Write-Error "Python 3 is required to run Validate-Bagrut-Compliance.py"

@@ -10,9 +10,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Get-PythonCommand {
-    foreach ($candidate in @("python3", "python", "py")) {
-        $command = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($command) {
+    foreach ($candidate in @("python", "python3", "py")) {
+        $commands = @(Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue)
+        foreach ($command in $commands) {
+            if ($command.Source -match '[\\/]Microsoft[\\/]WindowsApps[\\/]') { continue }
             try {
                 if ($candidate -eq "py") {
                     & $command.Source -3 -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
@@ -25,6 +26,7 @@ function Get-PythonCommand {
         }
     }
     $localPaths = @()
+    $localPaths += Get-ChildItem -Path "C:\Python3*\python.exe" -ErrorAction SilentlyContinue
     if ($env:LocalAppData) {
         $localPaths += Get-ChildItem -Path (Join-Path $env:LocalAppData "Programs\Python\Python3*\python.exe") -ErrorAction SilentlyContinue
     }
