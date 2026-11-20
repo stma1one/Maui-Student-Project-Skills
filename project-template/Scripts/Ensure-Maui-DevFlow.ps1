@@ -125,10 +125,10 @@ function Find-WorkingPython3 {
             try {
                 if ($candidate -eq "py") {
                     & $cmd.Source -3 -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
-                    if ($LASTEXITCODE -eq 0) { return @($cmd.Source, "-3") }
+                    if ($LASTEXITCODE -eq 0) { return ,@($cmd.Source, "-3") }
                 } else {
                     & $cmd.Source -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
-                    if ($LASTEXITCODE -eq 0) { return @($cmd.Source) }
+                    if ($LASTEXITCODE -eq 0) { return ,@($cmd.Source) }
                 }
             } catch {}
         }
@@ -143,7 +143,7 @@ function Find-WorkingPython3 {
     foreach ($exe in ($localPaths | Sort-Object FullName -Descending)) {
         try {
             & $exe.FullName -c "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)" *> $null
-            if ($LASTEXITCODE -eq 0) { return @($exe.FullName) }
+            if ($LASTEXITCODE -eq 0) { return ,@($exe.FullName) }
         } catch {}
     }
     return $null
