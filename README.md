@@ -1,6 +1,6 @@
 # MAUI K12 Baton Workflow Skill
 
-Portable agent-skill package (v1.5.1) for teaching high-school students to build .NET MAUI projects through staged planning, concept gates, ownership negotiation, implementation, verification, and learning documentation.
+Portable agent-skill package (v1.5.2) for teaching high-school students to build .NET MAUI projects through staged planning, concept gates, ownership negotiation, implementation, verification, and learning documentation.
 
 The package is designed for:
 - Antigravity project agents that read `AGENTS.md` and `.agents/skills`

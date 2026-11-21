@@ -42,9 +42,9 @@ However, you MUST actively query official documentation (Microsoft Learn for MAU
 1. **Native & Storage NuGet Packages**:
    - When adding or choosing packages for SQLite, local storage, or platform bindings.
    - Purpose: Ensure zero package conflicts and correct platform provider bundles.
-2. **Platform & Device-Specific Features**:
-   - When using `Map` (`Microsoft.Maui.Controls.Maps` — https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0 and Google Maps Android API Key setup in Hebrew: https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he), `WebView`, `MediaPicker`, `Geolocation`, `Permissions`, or native hardware controls.
-   - Purpose: Ensure correct MAUI-specific XAML controls, `.UseMauiMaps()` builder registration, Android manifest metadata/permissions, and lifecycle methods are used (not Web or standard desktop idioms).
+2. **Platform & Device-Specific Features & Graphics**:
+   - When using `Map` (`Microsoft.Maui.Controls.Maps` — https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0 and Google Maps Android API Key setup in Hebrew: https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he), 2D Graphics and Canvas (`Microsoft.Maui.Graphics` / `GraphicsView` / `ICanvas` — https://learn.microsoft.com/en-us/dotnet/maui/user-interface/graphics/?view=net-maui-10.0, https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/graphicsview?view=net-maui-10.0, and https://learn.microsoft.com/en-us/dotnet/maui/user-interface/graphics/draw?view=net-maui-10.0), `WebView`, `MediaPicker`, `Geolocation`, `Permissions`, or native hardware controls.
+   - Purpose: Ensure correct MAUI-specific XAML controls, `.UseMauiMaps()` builder registration, Android manifest metadata/permissions, `IDrawable` lifecycle, and native drawing methods are used (not Web or standard desktop idioms).
 3. **Cloud, AI & Third-Party SDK Integration**:
    - **Google AI / Gemini API (Single Source of Truth):** When integrating Google Gemini / Generative AI in .NET MAUI, use **https://googleapis.github.io/dotnet-genai/** (the official `Google.GenAI` .NET SDK) as the authoritative source of truth.
    - When integrating Firebase, Firestore, Authentication providers, or Azure services in a MAUI client.
@@ -136,6 +136,31 @@ When a student project integrates interactive maps (for example, to fulfill Mini
      - As documented in https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0, `Microsoft.Maui.Controls.Maps` renders natively on **Android, iOS, and Mac Catalyst** (not on Windows WinUI desktop). Always verify and capture live map screenshots on the **Android emulator/device** (or provide an Android-framed mockup fallback if offline).
   6. **Unit Testing Map & Location Logic in `xunit.v3`:**
      - Keep distance calculations (`Location.CalculateDistance`), pin filtering, and radius searches inside a ViewModel or Service method (using `ILocationService` fake in tests) so `xunit.v3` tests verify location filtering and pin generation without instantiating the native `Map` UI control.
+
+## 2D Graphics & Canvas (`Microsoft.Maui.Graphics` & `GraphicsView` — Single Source of Truth)
+
+When a student project creates custom drawing, 2D graphics, interactive canvases, game boards, charts, or visual signatures (for example, to fulfill Ministry of Education 5-unit Bagrut Section 9 topic `9.1` / `9.3` — גרפיקה מותאמת אישית וציור 2D):
+
+- **Authoritative .NET MAUI Graphics Documentation (Single Sources of Truth):**
+  1. **Microsoft.Maui.Graphics Overview:** **https://learn.microsoft.com/en-us/dotnet/maui/user-interface/graphics/?view=net-maui-10.0**
+  2. **GraphicsView Control:** **https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/graphicsview?view=net-maui-10.0**
+  3. **Draw Graphical Objects (`ICanvas`):** **https://learn.microsoft.com/en-us/dotnet/maui/user-interface/graphics/draw?view=net-maui-10.0**
+- **Core Architecture & Implementation Rules:**
+  - **No Extra Third-Party NuGet Required:** `Microsoft.Maui.Graphics` is built directly into .NET MAUI (`Microsoft.Maui.Controls.GraphicsView` and `Microsoft.Maui.Graphics.ICanvas` are core framework components). Do not install unneeded third-party drawing libraries (e.g. SkiaSharp) unless explicitly required for specialized shader work.
+  - **Clean MVVM Separation of Concerns:**
+    - Implement `IDrawable` (`void Draw(ICanvas canvas, RectF dirtyRect)`) in a dedicated class inside `Views/` or `Controls/` (e.g. `Controls/GameBoardDrawable.cs` or `Views/DrawingCanvasDrawable.cs`).
+    - The `IDrawable` class owns the visual rendering instructions (`canvas.StrokeColor`, `canvas.StrokeSize`, `canvas.FillColor`, `canvas.DrawRectangle`, `canvas.FillEllipse`, `canvas.DrawPath`, `canvas.DrawString`).
+    - Domain data, game logic, state, shapes list, and coordinate collections belong strictly in the `ViewModel`. Pass or bind data from the `ViewModel` to the `IDrawable` or `GraphicsView`.
+  - **Redrawing & Invalidation (`Invalidate()`):**
+    - To update the canvas when ViewModel state changes, call `graphicsView.Invalidate()`.
+    - Do not hold direct references to `ICanvas` or platform drawing contexts inside ViewModels. Invalidation can be triggered from page code-behind observing ViewModel changes, via a custom control with a bindable property that calls `Invalidate()` in its property-changed callback, or via an event/command.
+  - **Interactive Touch & Gestures:**
+    - When user interaction (e.g. tapping, dragging, drawing on the canvas) is needed, handle `StartInteraction`, `DragInteraction`, and `EndInteraction` on `GraphicsView` (or attach `TapGestureRecognizer` / `PanGestureRecognizer`).
+    - Transform touch coordinates (`PointF`) into game board grid cells or domain models and dispatch them to `ViewModel` commands (`ICommand`).
+  - **Unit Testing Graphics Logic in `xunit.v3`:**
+    - Never attempt to instantiate a platform `ICanvas` or `GraphicsView` inside `xunit.v3` unit tests.
+    - Keep geometric calculations, coordinate transformations (e.g., screen `PointF` to grid cell `(row, col)`), collision detection, and drawing model state in testable helper methods or ViewModels.
+    - Test these calculation methods thoroughly in `xunit.v3` with unit test cases verifying bounding boxes, grid cell mapping, and shape boundaries offline.
 
 ## Shell Navigation
 

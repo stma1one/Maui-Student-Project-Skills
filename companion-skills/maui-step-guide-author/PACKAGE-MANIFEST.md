@@ -1,9 +1,9 @@
 # Package Manifest
 
 Package: MAUI Step Guide Author Skill (Source-Grounded Learning Books & Bagrut Portfolio)
-Version: 1.5.1
+Version: 1.5.2
 Status: classroom-ready
-Parent Package: MAUI K12 Baton Workflow Skill (v1.5.1)
+Parent Package: MAUI K12 Baton Workflow Skill (v1.5.2)
 
 ## Purpose
 

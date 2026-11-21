@@ -379,7 +379,10 @@ write_if_missing "$ROOT/Learning/AI-And-External-Code-Attribution.md" '# יומ�
 4. Versluis, G. [.NET]. (2026, November 13). *Beyond Code Generation: Give AI Eyes and Hands for .NET MAUI* [Video]. YouTube. http://www.youtube.com/watch?v=-3ClD7BHbLU
 5. Google. (2026). *Google GenAI .NET SDK (`Google.GenAI`) documentation*. Google APIs. https://googleapis.github.io/dotnet-genai/
 6. Microsoft. (2026). *.NET MAUI Map control (`Microsoft.Maui.Controls.Maps`) documentation*. Microsoft Learn. https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/map?view=net-maui-10.0
-7. Google. (2026). *שימוש במפתחות API עם Maps SDK ל-Android (Get an API Key)*. Google Developers. https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he'
+7. Google. (2026). *שימוש במפתחות API עם Maps SDK ל-Android (Get an API Key)*. Google Developers. https://developers.google.com/maps/documentation/android-sdk/get-api-key?hl=he
+8. Microsoft. (2026). *.NET MAUI Graphics (`Microsoft.Maui.Graphics`) documentation*. Microsoft Learn. https://learn.microsoft.com/en-us/dotnet/maui/user-interface/graphics/?view=net-maui-10.0
+9. Microsoft. (2026). *.NET MAUI GraphicsView control documentation*. Microsoft Learn. https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/graphicsview?view=net-maui-10.0
+10. Microsoft. (2026). *Draw graphical objects in .NET MAUI (`ICanvas`)*. Microsoft Learn. https://learn.microsoft.com/en-us/dotnet/maui/user-interface/graphics/draw?view=net-maui-10.0'
 
 sync_skill_clean() {
     local src="$1"

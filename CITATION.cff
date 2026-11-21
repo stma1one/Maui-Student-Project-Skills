@@ -4,8 +4,8 @@ authors:
 - family-names: "Simon"
   given-names: "Tal"
 title: "MAUI K12 Baton Workflow Skill"
-version: 1.5.1
-date-released: 2026-11-20
+version: 1.5.2
+date-released: 2026-11-21
 url: "https://github.com/stma1one/Maui-Student-Project-Skills"
 license: "Apache-2.0"
 abstract: "A portable agent-skill package for teaching high-school students to build .NET MAUI projects through staged planning, concept gates, ownership negotiation, implementation, 5-unit Bagrut compliance, and Hebrew learning documentation."

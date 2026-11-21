@@ -1,7 +1,7 @@
 # Package Manifest
 
 Package: MAUI K12 Baton Workflow Skill
-Version: 1.5.1
+Version: 1.5.2
 Status: classroom-ready
 
 ## Purpose
@@ -143,6 +143,12 @@ Learning/Diagrams/
 Scripts/*
 ```
 *(Note: `evals/` directories and `Set-Maui-Agent-Mode.*` instructor scripts are intentionally excluded from student project installations).*
+
+## 1.5.2 Release Notes (.NET MAUI Graphics & Canvas Single Source of Truth & Test-Target DevFlow Isolation)
+
+- **Official .NET MAUI 2D Graphics & Canvas References:** Added **https://learn.microsoft.com/en-us/dotnet/maui/user-interface/graphics/?view=net-maui-10.0** (`Microsoft.Maui.Graphics` overview), **https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/graphicsview?view=net-maui-10.0** (`GraphicsView` control), and **https://learn.microsoft.com/en-us/dotnet/maui/user-interface/graphics/draw?view=net-maui-10.0** (Draw graphical objects / `ICanvas`) as Single Source of Truth references in `references/maui-specialist-guardrails.md`, `references/bagrut-5u-requirements.md` (Section `9.1` / `9.3`), `SKILL.md`, `project-template/AGENTS.md`, and `Learning/AI-And-External-Code-Attribution.md` (`Setup-Skills.ps1/.sh`).
+- **Clean MVVM Separation & xUnit Testing for Graphics:** Established architectural guidelines ensuring `IDrawable` (`Draw(ICanvas, RectF)`) remains strictly in `Views/` or `Controls/` while game state, coordinates, shapes, and domain data remain in `ViewModels/`, redrawing is triggered via `GraphicsView.Invalidate()`, and geometric/coordinate math is unit-tested offline in `xunit.v3` without UI dependencies.
+- **DevFlow Isolation from Plain Test TFM (`net10.0` / `net11.0`):** Hardened `Ensure-Maui-DevFlow.py/.ps1/.sh` and `Validate-Maui-ObsoleteApis.ps1/.sh` so `Microsoft.Maui.DevFlow.Agent` package references are conditioned with `'$(TargetFramework)' != 'net10.0' and '$(TargetFramework)' != 'net11.0'`, and `MauiProgram.cs` code is protected with `#if DEBUG && (ANDROID || IOS || MACCATALYST || WINDOWS)`, resolving CS0234 compilation errors when compiling the plain test library target.
 
 ## 1.5.1 Release Notes (.NET MAUI Maps Reference, Android Google Maps API Key Guide & Automated Guardrails)
 
